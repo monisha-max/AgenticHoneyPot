@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Honeypot API
+  # ============================================================================
+  honeypot-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: honeypot-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - API_KEY=${API_KEY:-your-secret-api-key}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - GUVI_CALLBACK_URL=${GUVI_CALLBACK_URL:-https://hackathon.guvi.in/api/updateHoneyPotFinalResult}
+    depends_on:
+      - redis
+    volumes:
+      - ./app:/app/app:ro  # Mount app code for development
+      - ./data:/app/data:ro
+    restart: unless-stopped
+    networks:
+      - honeypot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # Redis (Session Storage)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: honeypot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - honeypot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # Redis Commander (Optional - for debugging)
+  # ============================================================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: honeypot-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - honeypot-network
+    profiles:
+      - debug  # Only starts with: docker-compose --profile debug up
+
+networks:
+  honeypot-network:
+    driver: bridge
+
+volumes:
+  redis-data:
