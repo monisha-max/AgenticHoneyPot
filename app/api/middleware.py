@@ -185,13 +185,17 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         # Skip auth for certain paths
-        skip_paths = ["/", "/health", "/docs", "/openapi.json", "/redoc", "/favicon.ico"]
+        skip_paths = ["/", "/health", "/docs", "/docs/", "/openapi.json", "/redoc", "/redoc/", "/favicon.ico"]
 
         # Skip auth for OPTIONS requests (CORS preflight)
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        if request.url.path not in skip_paths:
+        # Normalize path (strip trailing slash for comparison)
+        path = request.url.path.rstrip('/') or '/'
+        skip_paths_normalized = [p.rstrip('/') or '/' for p in skip_paths]
+
+        if path not in skip_paths_normalized and request.url.path not in skip_paths:
             try:
                 await verify_api_key(request)
             except HTTPException as e:
