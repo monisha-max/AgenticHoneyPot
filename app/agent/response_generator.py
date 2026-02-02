@@ -5,9 +5,40 @@ Generates human-like responses using LLM with persona context
 
 import logging
 import random
+import hashlib
 from typing import List, Optional, Dict, Any
+from functools import lru_cache
+from collections import OrderedDict
 
 from app.config import settings
+
+# Simple LRU Cache for LLM responses (max 100 entries)
+class LLMCache:
+    def __init__(self, maxsize=100):
+        self.cache = OrderedDict()
+        self.maxsize = maxsize
+
+    def _make_key(self, persona, phase, emotion, message):
+        """Create cache key from inputs"""
+        key_str = f"{persona}:{phase}:{emotion}:{message[:100]}"
+        return hashlib.md5(key_str.encode()).hexdigest()
+
+    def get(self, persona, phase, emotion, message):
+        key = self._make_key(persona, phase, emotion, message)
+        if key in self.cache:
+            self.cache.move_to_end(key)
+            return self.cache[key]
+        return None
+
+    def set(self, persona, phase, emotion, message, response):
+        key = self._make_key(persona, phase, emotion, message)
+        self.cache[key] = response
+        self.cache.move_to_end(key)
+        if len(self.cache) > self.maxsize:
+            self.cache.popitem(last=False)
+
+# Global cache instance
+_llm_cache = LLMCache(maxsize=100)
 from app.api.schemas import (
     PersonaType, EmotionalState, ConversationPhase, ScamType, SessionState
 )
@@ -451,6 +482,12 @@ class ResponseGenerator:
     ) -> Optional[str]:
         """Generate response using LLM"""
 
+        # Check cache first for faster response
+        cached = _llm_cache.get(persona.value, phase.value, emotional_state.value, scammer_message)
+        if cached:
+            logger.info("Using cached LLM response")
+            return cached
+
         # Get persona context
         persona_context = self.persona_engine.get_context_for_llm(persona)
 
@@ -495,6 +532,8 @@ Your response:"""
         # Call LLM - use asyncio.to_thread for sync clients
         import asyncio
 
+        result = None
+
         if self.llm_provider == "openai":
             # OpenAI client is sync, run in thread pool
             def _openai_call():
@@ -508,7 +547,7 @@ Your response:"""
                     max_tokens=settings.LLM_MAX_TOKENS
                 )
             response = await asyncio.to_thread(_openai_call)
-            return response.choices[0].message.content.strip()
+            result = response.choices[0].message.content.strip()
 
         elif self.llm_provider == "anthropic":
             # Anthropic client is sync, run in thread pool
@@ -519,7 +558,7 @@ Your response:"""
                     messages=[{"role": "user", "content": prompt}]
                 )
             response = await asyncio.to_thread(_anthropic_call)
-            return response.content[0].text.strip()
+            result = response.content[0].text.strip()
 
         elif self.llm_provider == "google":
             # Google client is sync, run in thread pool
@@ -527,9 +566,13 @@ Your response:"""
                 model = self.llm_client.GenerativeModel(settings.LLM_MODEL)
                 return model.generate_content(prompt)
             response = await asyncio.to_thread(_google_call)
-            return response.text.strip()
+            result = response.text.strip()
 
-        return None
+        # Cache the result for future use
+        if result:
+            _llm_cache.set(persona.value, phase.value, emotional_state.value, scammer_message, result)
+
+        return result
 
     def _generate_from_template(
             self,

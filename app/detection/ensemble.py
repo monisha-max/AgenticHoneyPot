@@ -68,11 +68,26 @@ class ScamDetectionEnsemble:
         """
         logger.debug(f"Running ensemble detection on: {text[:50]}...")
 
-        # Run all detectors
-        rule_result = self.rule_detector.detect(text, history)
-        pattern_result = self.pattern_matcher.match(text, history)
-        ml_result = self.ml_classifier.predict(text)
-        llm_result = await self.llm_analyzer.analyze(text, history)
+        # Run all detectors IN PARALLEL for faster response
+        import asyncio
+
+        # Wrap sync detectors in async
+        async def run_rule_detector():
+            return await asyncio.to_thread(self.rule_detector.detect, text, history)
+
+        async def run_pattern_matcher():
+            return await asyncio.to_thread(self.pattern_matcher.match, text, history)
+
+        async def run_ml_classifier():
+            return await asyncio.to_thread(self.ml_classifier.predict, text)
+
+        # Run all 4 detectors in parallel
+        rule_result, pattern_result, ml_result, llm_result = await asyncio.gather(
+            run_rule_detector(),
+            run_pattern_matcher(),
+            run_ml_classifier(),
+            self.llm_analyzer.analyze(text, history)
+        )
 
         # Calculate weighted ensemble score
         weighted_score = (

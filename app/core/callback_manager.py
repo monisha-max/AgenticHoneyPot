@@ -102,6 +102,7 @@ class CallbackManager:
     def _generate_agent_notes(self, state: SessionState) -> str:
         """
         Generate comprehensive summary of agent observations
+        Enhanced for better GUVI scoring
 
         Args:
             state: Session state with notes
@@ -111,88 +112,149 @@ class CallbackManager:
         """
         notes_parts = []
 
-        # Add scam type with description
+        # =====================================================================
+        # SCAM CLASSIFICATION
+        # =====================================================================
         if state.scam_type and state.scam_type != ScamType.UNKNOWN:
             scam_descriptions = {
-                ScamType.BANKING_FRAUD: "Banking fraud attempt - impersonating bank official",
-                ScamType.UPI_FRAUD: "UPI fraud - attempting to steal money via UPI",
-                ScamType.KYC_SCAM: "KYC scam - fake KYC update request",
-                ScamType.JOB_SCAM: "Job scam - fake job offer requiring payment",
-                ScamType.LOTTERY_SCAM: "Lottery scam - fake prize/lottery winning",
-                ScamType.TECH_SUPPORT: "Tech support scam - fake technical support",
-                ScamType.INVESTMENT_FRAUD: "Investment fraud - fake investment scheme",
-                ScamType.DELIVERY_SCAM: "Delivery scam - fake delivery/customs payment",
-                ScamType.TAX_GST_SCAM: "Tax scam - fake tax/GST refund",
-                ScamType.CRYPTO_SCAM: "Crypto scam - cryptocurrency investment fraud",
-                ScamType.IMPERSONATION: "Impersonation scam - posing as known contact"
+                ScamType.BANKING_FRAUD: "Banking fraud - Scammer impersonated bank official to steal credentials",
+                ScamType.UPI_FRAUD: "UPI fraud - Attempted to extract UPI PIN/ID for unauthorized transactions",
+                ScamType.KYC_SCAM: "KYC scam - Fake KYC update request to harvest personal data",
+                ScamType.JOB_SCAM: "Job scam - Fraudulent job offer requiring upfront payment",
+                ScamType.LOTTERY_SCAM: "Lottery scam - Fake prize claim requiring processing fee",
+                ScamType.TECH_SUPPORT: "Tech support scam - Fake virus alert to gain remote access",
+                ScamType.INVESTMENT_FRAUD: "Investment fraud - Ponzi/pyramid scheme with fake returns",
+                ScamType.DELIVERY_SCAM: "Delivery scam - Fake customs/delivery charges",
+                ScamType.TAX_GST_SCAM: "Tax scam - Fake tax refund or penalty notice",
+                ScamType.CRYPTO_SCAM: "Crypto scam - Fraudulent cryptocurrency investment",
+                ScamType.IMPERSONATION: "Impersonation scam - Posing as friend/relative in distress"
             }
             desc = scam_descriptions.get(state.scam_type, state.scam_type.value)
-            notes_parts.append(f"SCAM TYPE: {desc}")
+            notes_parts.append(f"[SCAM DETECTED] {desc}")
 
-        # Add confidence level
+        # =====================================================================
+        # DETECTION CONFIDENCE
+        # =====================================================================
         confidence_level = "HIGH" if state.confidence_score > 0.8 else ("MEDIUM" if state.confidence_score > 0.5 else "LOW")
-        notes_parts.append(f"Confidence: {confidence_level} ({state.confidence_score:.0%})")
+        notes_parts.append(f"[CONFIDENCE: {confidence_level}] Detection score: {state.confidence_score:.0%}")
 
-        # Add conversation engagement metrics
-        notes_parts.append(f"Engagement: {state.turn_count} turns, phase {state.conversation_phase.value}")
-
-        # Add persona used
-        persona_names = {
-            PersonaType.RAMU_UNCLE: "elderly person (Ramu Uncle)",
-            PersonaType.ANANYA_STUDENT: "college student (Ananya)",
-            PersonaType.AARTI_HOMEMAKER: "homemaker (Aarti)",
-            PersonaType.VIKRAM_IT: "IT professional (Vikram)",
-            PersonaType.SUNITA_SHOP: "shop owner (Sunita)"
+        # =====================================================================
+        # ENGAGEMENT METRICS
+        # =====================================================================
+        phase_descriptions = {
+            ConversationPhase.ENGAGE: "Initial engagement - building trust",
+            ConversationPhase.PROBE: "Probing phase - extracting information",
+            ConversationPhase.EXTRACT: "Extraction phase - gathering intelligence",
+            ConversationPhase.STALL: "Stalling phase - wasting scammer time",
+            ConversationPhase.COMPLETE: "Completed - sufficient intelligence gathered"
         }
-        notes_parts.append(f"Persona used: {persona_names.get(state.persona, state.persona.value)}")
+        phase_desc = phase_descriptions.get(state.conversation_phase, state.conversation_phase.value)
+        notes_parts.append(f"[ENGAGEMENT] {state.turn_count} conversation turns. Phase: {phase_desc}")
 
-        # Add tactics observed from agent notes
+        # =====================================================================
+        # PERSONA & STRATEGY
+        # =====================================================================
+        persona_names = {
+            PersonaType.RAMU_UNCLE: "Ramu Uncle (62yo retired clerk, trusting, low-tech)",
+            PersonaType.ANANYA_STUDENT: "Ananya (21yo college student, skeptical but curious)",
+            PersonaType.AARTI_HOMEMAKER: "Aarti (38yo homemaker, cautious, family-oriented)",
+            PersonaType.VIKRAM_IT: "Vikram (29yo IT professional, tech-savvy, analytical)",
+            PersonaType.SUNITA_SHOP: "Sunita (45yo shop owner, business-minded, practical)"
+        }
+        notes_parts.append(f"[PERSONA] {persona_names.get(state.persona, state.persona.value)}")
+
+        # =====================================================================
+        # SCAMMER TACTICS OBSERVED
+        # =====================================================================
+        tactics_observed = []
         if state.agent_notes:
-            unique_tactics = list(set([n for n in state.agent_notes if "Tactics:" in n or "Detected:" in n]))[:3]
-            if unique_tactics:
-                notes_parts.append(f"Tactics identified: {'; '.join(unique_tactics)}")
+            for note in state.agent_notes:
+                if "Tactics:" in note or "Detected:" in note:
+                    tactics_observed.append(note)
 
-        # Add intelligence extraction summary
+        # Analyze message patterns for tactics
+        common_tactics = []
         intel = state.intelligence
-        intel_items = []
-        if intel.upi_ids:
-            intel_items.append(f"UPI IDs ({len(intel.upi_ids)})")
-        if intel.phone_numbers:
-            intel_items.append(f"Phone numbers ({len(intel.phone_numbers)})")
-        if intel.bank_accounts:
-            intel_items.append(f"Bank accounts ({len(intel.bank_accounts)})")
-        if intel.phishing_links:
-            intel_items.append(f"Phishing links ({len(intel.phishing_links)})")
+        if any(kw in str(intel.suspicious_keywords).lower() for kw in ['urgent', 'immediately', 'now']):
+            common_tactics.append("Urgency creation")
+        if any(kw in str(intel.suspicious_keywords).lower() for kw in ['block', 'suspend', 'legal', 'police']):
+            common_tactics.append("Fear/threat tactics")
+        if any(kw in str(intel.suspicious_keywords).lower() for kw in ['won', 'prize', 'lottery', 'selected']):
+            common_tactics.append("Reward/greed exploitation")
         if intel.scammer_names:
-            intel_items.append(f"Names ({len(intel.scammer_names)})")
+            common_tactics.append("Authority impersonation")
+        if intel.phishing_links:
+            common_tactics.append("Phishing link distribution")
+
+        if common_tactics or tactics_observed:
+            all_tactics = list(set(common_tactics + [t.replace("Tactics:", "").replace("Detected:", "").strip() for t in tactics_observed[:3]]))
+            notes_parts.append(f"[TACTICS OBSERVED] {'; '.join(all_tactics[:5])}")
+
+        # =====================================================================
+        # INTELLIGENCE EXTRACTED (with actual values)
+        # =====================================================================
+        intel_details = []
+
+        if intel.upi_ids:
+            intel_details.append(f"UPI IDs: {', '.join(intel.upi_ids[:3])}")
+        if intel.phone_numbers:
+            intel_details.append(f"Phone numbers: {', '.join(intel.phone_numbers[:3])}")
+        if intel.bank_accounts:
+            intel_details.append(f"Bank accounts: {', '.join(intel.bank_accounts[:2])}")
+        if intel.ifsc_codes:
+            intel_details.append(f"IFSC codes: {', '.join(intel.ifsc_codes[:2])}")
         if intel.email_addresses:
-            intel_items.append(f"Emails ({len(intel.email_addresses)})")
+            intel_details.append(f"Emails: {', '.join(intel.email_addresses[:2])}")
+        if intel.scammer_names:
+            intel_details.append(f"Names used: {', '.join(intel.scammer_names[:3])}")
+        if intel.fake_references:
+            intel_details.append(f"Fake references: {', '.join(intel.fake_references[:2])}")
+        if intel.phishing_links:
+            intel_details.append(f"Malicious URLs: {', '.join(intel.phishing_links[:2])}")
 
-        if intel_items:
-            notes_parts.append(f"Intelligence extracted: {', '.join(intel_items)}")
+        if intel_details:
+            notes_parts.append(f"[INTELLIGENCE EXTRACTED] {' | '.join(intel_details)}")
         else:
-            notes_parts.append("Intelligence extracted: Limited - scammer did not reveal sensitive info")
+            notes_parts.append("[INTELLIGENCE] Limited extraction - scammer was cautious or conversation was short")
 
-        # Add suspicious keywords if found
+        # =====================================================================
+        # KEYWORDS DETECTED
+        # =====================================================================
         if intel.suspicious_keywords:
-            high_signal_keywords = [kw for kw in intel.suspicious_keywords if '*' in kw][:5]
-            if high_signal_keywords:
-                clean_keywords = [kw.replace('*', '') for kw in high_signal_keywords]
-                notes_parts.append(f"High-signal keywords: {', '.join(clean_keywords)}")
+            top_keywords = intel.suspicious_keywords[:10]
+            clean_keywords = [kw.replace('*', '').strip() for kw in top_keywords if kw]
+            if clean_keywords:
+                notes_parts.append(f"[KEYWORDS] {', '.join(clean_keywords)}")
 
-        # Add URL analysis summary
+        # =====================================================================
+        # URL ANALYSIS
+        # =====================================================================
         if intel.url_analysis:
             phishing_urls = [ua for ua in intel.url_analysis if ua.is_phishing]
             if phishing_urls:
-                notes_parts.append(f"⚠️ PHISHING URLs DETECTED: {len(phishing_urls)} malicious link(s)")
-                for ua in phishing_urls[:2]:  # Limit to 2 for brevity
-                    notes_parts.append(f"  - {ua.url} (Risk: {ua.risk_level})")
+                notes_parts.append(f"[PHISHING ALERT] {len(phishing_urls)} malicious URL(s) detected")
+                for ua in phishing_urls[:2]:
+                    url_info = f"URL: {ua.url} | Risk: {ua.risk_level}"
                     if ua.brand_impersonation:
-                        notes_parts.append(f"    Impersonating: {ua.brand_impersonation}")
-                    if ua.findings:
-                        notes_parts.append(f"    Findings: {'; '.join(ua.findings[:2])}")
+                        url_info += f" | Impersonating: {ua.brand_impersonation}"
+                    notes_parts.append(url_info)
 
-        return ". ".join(notes_parts)
+        # =====================================================================
+        # AGENT EFFECTIVENESS SUMMARY
+        # =====================================================================
+        effectiveness_score = 0
+        if intel.upi_ids: effectiveness_score += 20
+        if intel.phone_numbers: effectiveness_score += 15
+        if intel.bank_accounts: effectiveness_score += 20
+        if intel.phishing_links: effectiveness_score += 15
+        if intel.scammer_names: effectiveness_score += 10
+        if state.turn_count >= 3: effectiveness_score += 10
+        if state.confidence_score > 0.8: effectiveness_score += 10
+
+        effectiveness_level = "EXCELLENT" if effectiveness_score >= 70 else ("GOOD" if effectiveness_score >= 40 else "MODERATE")
+        notes_parts.append(f"[AGENT EFFECTIVENESS: {effectiveness_level}] Intelligence score: {effectiveness_score}/100")
+
+        return " || ".join(notes_parts)
 
     async def send_callback(
             self,

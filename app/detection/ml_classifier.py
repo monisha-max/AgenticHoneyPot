@@ -191,19 +191,13 @@ class ScamMLClassifier:
             X_train_tfidf = self.vectorizer.fit_transform(X_train)
             X_test_tfidf = self.vectorizer.transform(X_test)
 
-            # Calculate class weights for imbalanced data
-            from sklearn.utils.class_weight import compute_class_weight
-            import numpy as np
-            classes = np.unique(y_train)
-            class_weights = compute_class_weight('balanced', classes=classes, y=y_train)
-            class_weight_dict = dict(zip(classes, class_weights))
-
             # Create ensemble classifier with optimized parameters
+            # Using 'balanced' for automatic class weight handling
             nb_clf = MultinomialNB(alpha=0.05)  # Lower alpha for less smoothing
             lr_clf = LogisticRegression(
                 max_iter=2000,
                 C=2.0,                    # Higher regularization
-                class_weight=class_weight_dict,
+                class_weight='balanced',  # Auto-balance classes
                 random_state=42,
                 solver='lbfgs'
             )
@@ -211,7 +205,7 @@ class ScamMLClassifier:
                 n_estimators=200,         # More trees
                 max_depth=20,             # Limit depth to prevent overfitting
                 min_samples_split=5,
-                class_weight=class_weight_dict,
+                class_weight='balanced',  # Auto-balance classes
                 random_state=42,
                 n_jobs=-1
             )
