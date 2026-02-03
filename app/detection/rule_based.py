@@ -49,7 +49,7 @@ class RuleBasedDetector:
         # =================================================================
         self.urgency_keywords = {
             "high": [
-                "immediately", "urgent", "right now", "today only",
+                "immediately", "urgent", "urgently", "right now", "today only",
                 "last chance", "final warning", "expires today",
                 "within 24 hours", "abhi", "turant", "jaldi",
                 "now or never", "deadline", "expires in", "only today",
@@ -58,7 +58,10 @@ class RuleBasedDetector:
                 "before midnight", "before 6pm", "closing soon",
                 "fauran", "abhi ke abhi", "turant karo", "jaldi karo",
                 "der mat karo", "waqt nahi hai", "aaj hi", "kal tak",
-                "2 ghante mein", "1 hour mein", "30 minutes mein"
+                "2 ghante mein", "1 hour mein", "30 minutes mein",
+                "need money urgently", "send money", "transfer money",
+                "very bad place", "emergency", "stuck", "stranded",
+                "help me", "please help", "in trouble", "bad situation"
             ],
             "medium": [
                 "soon", "quickly", "hurry", "limited time",
@@ -192,7 +195,13 @@ class RuleBasedDetector:
                 "passport office", "rti", "noc", "municipality",
                 "dgca", "rto", "traffic police", "cbi", "ed", "nia",
                 "sebi", "irda", "rbi circular", "government scheme",
-                "pm kisan", "ayushman bharat", "jan dhan", "mudra loan"
+                "pm kisan", "ayushman bharat", "jan dhan", "mudra loan",
+                "your friend", "this is your", "i am your", "its me",
+                "your son", "your daughter", "your brother", "your sister",
+                "your uncle", "your cousin", "your relative", "your boss",
+                "stuck abroad", "stuck overseas", "stuck in", "arrested",
+                "hospital", "accident", "lost wallet", "lost phone",
+                "tera dost", "tera bhai", "main hoon", "mujhe pehchana"
             ],
             "medium": [
                 "official", "authorized", "representative",
@@ -316,6 +325,18 @@ class RuleBasedDetector:
             ScamType.TAX_GST_SCAM: [
                 "tax", "gst", "it return", "refund",
                 "tax notice", "it department", "compliance"
+            ],
+            ScamType.IMPERSONATION: [
+                "your friend", "this is your", "i am your friend",
+                "stuck abroad", "stuck overseas", "stranded",
+                "need money", "send money", "lend me", "borrow",
+                "emergency", "hospital", "accident", "arrested",
+                "lost wallet", "lost phone", "help me out",
+                "will repay", "pay you back", "return the money",
+                "gpay", "paytm", "phonepe", "upi", "transfer",
+                "in trouble", "bad situation", "very bad place",
+                "your son", "your daughter", "your brother",
+                "tera dost", "mera accident", "hospital mein"
             ]
         }
 
@@ -382,11 +403,24 @@ class RuleBasedDetector:
         elif categories_present >= 2:
             base_score = min(1.0, base_score * 1.15)
 
+        # SPECIAL BOOST: Friend-in-trouble scam pattern (urgency + impersonation + financial)
+        # This is a very common scam where someone pretends to be a friend needing money urgently
+        friend_scam_detected = False
+        if urgency_score > 0 and impersonation_score > 0 and financial_score > 0:
+            base_score = min(1.0, base_score + 0.5)  # Strong boost for this pattern
+            friend_scam_detected = True
+
+        # Also boost if impersonation + money request
+        if impersonation_score > 0 and (financial_score > 0 or "need money" in text_lower or "send money" in text_lower or "gpay" in text_lower):
+            base_score = min(1.0, base_score + 0.3)
+
         # Determine scam type
         scam_type = self._determine_scam_type(all_text)
 
         # Build evidence list
         evidence = []
+        if friend_scam_detected:
+            evidence.append("friend_in_trouble_pattern")
         if urgency_score > 0.3:
             evidence.append("high_urgency_tactics")
         if threat_score > 0.3:

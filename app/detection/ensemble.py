@@ -139,6 +139,12 @@ class ScamDetectionEnsemble:
             weighted_score = max(weighted_score, 0.75) # Forced high confidence
             is_scam = True
 
+        # High confidence override from Rule-based (friend-in-trouble, impersonation patterns)
+        if rule_result.score > 0.7:
+            is_scam = True
+            weighted_score = max(weighted_score, 0.85)
+            logger.info(f"Rule-based high confidence override: score={rule_result.score}")
+
         # High confidence override from ML (trained on real data)
         if ml_result.confidence > 0.85:
             is_scam = True

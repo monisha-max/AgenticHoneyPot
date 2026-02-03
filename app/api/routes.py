@@ -171,11 +171,27 @@ def _parse_flexible_request(body: Dict[str, Any]) -> HoneypotRequest:
         timestamp=datetime.fromisoformat(message_data['timestamp'].replace('Z', '+00:00')) if isinstance(message_data.get('timestamp'), str) else datetime.utcnow()
     )
 
+    # Convert conversation history dicts to Message objects
+    history = []
+    for msg in body.get('conversationHistory', []):
+        if isinstance(msg, dict):
+            try:
+                history.append(Message(
+                    sender=SenderType(msg.get('sender', 'scammer')),
+                    text=str(msg.get('text', '')),
+                    timestamp=datetime.utcnow()
+                ))
+            except Exception:
+                # Skip invalid messages
+                pass
+        elif hasattr(msg, 'text'):
+            history.append(msg)
+
     # Build full request
     return HoneypotRequest(
         sessionId=session_id,
         message=message,
-        conversationHistory=body.get('conversationHistory', []),
+        conversationHistory=history,
         metadata=body.get('metadata')
     )
 

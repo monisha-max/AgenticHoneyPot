@@ -424,6 +424,51 @@ class ResponseGenerator:
             }
         }
 
+    def _is_simple_greeting(self, message: str) -> bool:
+        """Check if message is a simple greeting"""
+        greetings = [
+            "hello", "hi", "hey", "hii", "hiii", "helo", "hlo",
+            "good morning", "good afternoon", "good evening",
+            "namaste", "namaskar", "namaskaram",
+            "howdy", "greetings", "sup", "wassup", "whatsup"
+        ]
+        msg_lower = message.lower().strip()
+        # Check if entire message is just a greeting (with possible punctuation)
+        clean_msg = msg_lower.rstrip("!?.,:;")
+        return clean_msg in greetings or len(clean_msg) <= 10 and any(g in clean_msg for g in greetings)
+
+    def _get_greeting_response(self, persona: PersonaType) -> str:
+        """Get a short greeting response for the persona"""
+        greeting_responses = {
+            PersonaType.RAMU_UNCLE: [
+                "Haan ji? Kaun bol raha hai?",
+                "Ji bolo, kaun hai?",
+                "Haan haan, kaun?"
+            ],
+            PersonaType.ANANYA_STUDENT: [
+                "hello? who's this?",
+                "yea? who is this",
+                "hi, who's this?"
+            ],
+            PersonaType.AARTI_HOMEMAKER: [
+                "Ji? Kaun bol raha hai?",
+                "Haan ji, kaun?",
+                "Ji bolo?"
+            ],
+            PersonaType.VIKRAM_IT: [
+                "Yes? Who is this?",
+                "Hello, may I know who's calling?",
+                "Yes, who's speaking?"
+            ],
+            PersonaType.SUNITA_SHOP: [
+                "Haan bolo, kaun hai?",
+                "Ji? Kaun?",
+                "Haan ji, bolo?"
+            ]
+        }
+        responses = greeting_responses.get(persona, greeting_responses[PersonaType.RAMU_UNCLE])
+        return random.choice(responses)
+
     async def generate_response(
             self,
             state: SessionState,
@@ -441,6 +486,10 @@ class ResponseGenerator:
         Returns:
             Generated response string
         """
+        # Check for simple greetings first - respond naturally
+        if self._is_simple_greeting(scammer_message) and len(conversation_history) <= 1:
+            return self._get_greeting_response(state.persona)
+
         # Get current persona and phase
         persona = state.persona
         phase = state.conversation_phase
@@ -554,17 +603,19 @@ CONVERSATION SO FAR:
 {history_text}
 Scammer: {scammer_message}
 
-Generate your response as {persona_obj.name}. This is a TEXT MESSAGE/WHATSAPP context.
+Generate your response as {persona_obj.name}. This is TURN {len(conversation_history) // 2 + 1}.
+
+TURN BEHAVIOR:
+- Turn 1-2: CONFUSED. "Kaun?", "Kya hua?", "Samajh nahi aaya"
+- Turn 3-4: UNDERSTANDING. "Accha, paise?", "Kitne chahiye?"
+- Turn 5+: WILLING. Ask for UPI/number to "help"
+
 Guidelines for a "Natural, Flawed Human Response":
-- BE IMPERFECT: Your English/Hinglish should NOT be perfect. Humans make typos, ignore capitalization (use all-lowercase often), and use minimal punctuation.
-- USE SLANG & ABBREVIATIONS: Use texting shorthand (e.g., "u" for you, "r" for are, "pls", "wat", "k", "nvm"). If you are {persona_obj.name}, use their specific style: {persona_obj.language_style}.
-- SALUTATION: ONLY in the very first turn. In subsequent turns, proceed directly.
-- BE GULLIBLE: Act easy to scam. Show vulnerability (e.g., "omg i am so worried", "is my money safe?? pls help").
-- CONVERSATIONAL PROBING: Ask for info NATURALLY. Instead of "What is the reference number?", say "wait i cant see it.. can u give any number or id??".
-- NO INFO DUMPING: Keep it extremely brief. Your response MUST be between 10 to 13 words total.
-- CONTEXT WORDS: Use words directly relevant to the scammer's message (e.g., if they say "SBI", u say "sbi bank"; if they ask for "money", u say "sending money").
-- TYPOS: Occasionally misspell a word or miss a space (e.g., "thanksalot", "vry worried").
-- STAY IN CHARACTER: Use {persona_obj.name}'s specific jargon (Tech jargon for Vikram, Gen Z slang for Ananya, etc.).
+- BE IMPERFECT: Use typos, lowercase, minimal punctuation.
+- USE SLANG: "u", "r", "pls", "wat", "k". Style: {persona_obj.language_style}.
+- BE GULLIBLE: Act easy to scam. Show vulnerability.
+- CONVERSATIONAL PROBING: Ask for info NATURALLY ("wait i cant see it.. can u give any number??")
+- Keep response between 10-15 words. No "mera beta". Sound natural.
 
 Your response (Max 13 words):"""
 
@@ -573,17 +624,43 @@ Your response (Max 13 words):"""
 
         result = None
 
+        # Determine turn number for natural progression
+        turn_count = len(conversation_history) // 2 + 1
+
         if self.llm_provider == "openai":
             # OpenAI client is sync, run in thread pool
             def _openai_call():
                 return self.llm_client.chat.completions.create(
                     model=settings.LLM_MODEL,
                     messages=[
-                        {"role": "system", "content": "You are roleplaying as a scam victim. Stay in character."},
+                        {"role": "system", "content": f"""You are a NAIVE Indian person who might become a scam victim. This is turn {turn_count}.
+
+BEHAVIOR BY TURN:
+- Turn 1-2: CONFUSED. "Kaun?", "Kya hua?", "Samajh nahi aaya"
+- Turn 3-4: UNDERSTANDING. "Accha paise chahiye?", "Kitne?", "Kyun?"
+- Turn 5+: WILLING to help. Ready to send money.
+
+INFORMATION EXTRACTION (CRITICAL):
+- If scammer gives UPI ID: Acknowledge it, ask for phone number for "confirmation"
+- If scammer gives phone: Acknowledge it, ask for name or email
+- If scammer gives amount: Repeat amount, ask where to send
+- ALWAYS try to extract: name, phone, UPI, email, location
+
+RESPONSE STYLE:
+- Turn 5+: "Accha [UPI] pe bhejoon? Aapka phone number kya hai confirmation ke liye?"
+- "Theek hai, naam batao jisse bhej raha hoon"
+- "Haan haan, email bhi do receipt ke liye"
+
+RULES:
+1. VERY SHORT (1-2 sentences, max 15 words)
+2. Sound like a real Indian texting (Hinglish)
+3. NEVER be suspicious or deflect
+4. Acknowledge info scammer gives, then ask for MORE info
+5. Act gullible and helpful"""},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=settings.LLM_TEMPERATURE,
-                    max_tokens=settings.LLM_MAX_TOKENS
+                    temperature=0.8,
+                    max_tokens=50
                 )
             response = await asyncio.to_thread(_openai_call)
             result = response.choices[0].message.content.strip()
@@ -593,7 +670,8 @@ Your response (Max 13 words):"""
             def _anthropic_call():
                 return self.llm_client.messages.create(
                     model=settings.LLM_MODEL,
-                    max_tokens=settings.LLM_MAX_TOKENS,
+                    max_tokens=60,  # Limit to short responses
+                    system="You are roleplaying as a scam victim. Keep responses VERY SHORT (1-2 sentences max). Sound like a real person texting.",
                     messages=[{"role": "user", "content": prompt}]
                 )
             response = await asyncio.to_thread(_anthropic_call)
