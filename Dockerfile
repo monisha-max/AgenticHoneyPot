@@ -1,25 +1,9 @@
 # ============================================================================
 # Dockerfile for Agentic Honey-Pot API
-# Multi-stage build for optimized production image
+# Single-stage build with in-image dependency install
 # ============================================================================
 
-# Stage 1: Builder
-FROM python:3.11-slim as builder
-
-WORKDIR /app
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
-
-
-# Stage 2: Production
-FROM python:3.11-slim as production
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -30,11 +14,27 @@ RUN addgroup --system --gid 1001 appgroup \
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy wheels from builder
-COPY --from=builder /app/wheels /wheels
-RUN pip install --no-cache /wheels/*
+# Install Python dependencies (inline, no requirements.txt copy)
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    pydantic \
+    pydantic-settings \
+    httpx \
+    crawl4ai \
+    beautifulsoup4 \
+    lxml \
+    redis \
+    openai \
+    anthropic \
+    google-generativeai \
+    pandas \
+    scikit-learn \
+    numpy \
+    python-dotenv
 
 # Copy application code
 COPY ./app ./app
@@ -59,4 +59,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
