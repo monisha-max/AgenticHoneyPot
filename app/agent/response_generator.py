@@ -276,6 +276,11 @@ class ResponseGenerator:
                         "Hai Bhagwan! {echo}? Bachche ka exam hai, bijli nahi jaani chahiye!",
                         "Arey! Mera pati gussa karenge. Kya karun ab?",
                         "Yeh bahut serious hai. Mujhe jaldi batao kya karna hai."
+                    ],
+                    EmotionalState.INITIAL: [
+                        "Haan ji? Kaun bol raha hai?",
+                        "Ji bolo, main Aarti bol rahi hoon.",
+                        "Hello? Hello?"
                     ]
                 },
                 ConversationPhase.PROBE: {
@@ -323,6 +328,11 @@ class ResponseGenerator:
                     EmotionalState.WORRIED: [
                         "If there's a genuine issue, I need to address it. What exactly is the problem?",
                         "My credit score can't be affected. Explain the issue clearly."
+                    ],
+                    EmotionalState.INITIAL: [
+                        "Hello? Who is this?",
+                        "Yes, hello? Can I help you?",
+                        "Hi, who's speaking?"
                     ]
                 },
                 ConversationPhase.PROBE: {
@@ -371,6 +381,11 @@ class ResponseGenerator:
                         "GST ka notice hai kya? Dukaan band ho jayegi?",
                         "Arey baap re! Yeh toh badi problem hai. Kya karun ab?",
                         "Loan ka issue hai? Mujhe jaldi batao."
+                    ],
+                    EmotionalState.INITIAL: [
+                        "Haan bolo, kaun?",
+                        "Ji? Dukaan mein hoon abhi. Kaun bol rahe ho?",
+                        "Hello? Haan bolo."
                     ]
                 },
                 ConversationPhase.PROBE: {
@@ -488,14 +503,34 @@ class ResponseGenerator:
             logger.info("Using cached LLM response")
             return cached
 
-        # Get persona context
+        # Get persona object and context
+        persona_obj = self.persona_engine.get_persona(persona)
         persona_context = self.persona_engine.get_context_for_llm(persona)
 
         # Get emotional context
         emotion_desc = self.emotional_state_machine.get_current_state_description(emotional_state)
 
-        # Get technique guidance
-        technique_guidance = f"""
+        # Detect if it's a simple greeting or introduction
+        greeting_words = {"hi", "hello", "hey", "hola", "namaste", "gm", "gn", "whatsapp"}
+        scammer_lower = scammer_message.lower()
+        # Count messages from scammer to see if this is their first message
+        scammer_msg_count = sum(1 for msg in conversation_history if msg.get("sender") == "scammer")
+        
+        is_greeting = any(scammer_lower.startswith(g) for g in greeting_words) or \
+                      (scammer_msg_count == 0 and ("this is" in scammer_lower or "i am" in scammer_lower or "is this" in scammer_lower))
+
+        # Technique guidance - only use if not a simple greeting on first turn
+        if is_greeting and len(conversation_history) <= 1:
+            name_inst = f"If they call you a different name (like Pranav), naturally say you aren't them or be confused. If they address you correctly as {persona_obj.name}, just say hi."
+            technique_guidance = f"""
+STAY IN CHARACTER: This is an unknown contact. Just reply with a simple, natural greeting.
+- {name_inst}
+- Ask who they are or how they got your number.
+- Do NOT assume there is an 'issue' or 'problem' yet. 
+- Keep it to one short sentence.
+"""
+        else:
+            technique_guidance = f"""
 Current probing technique: {technique.name}
 Goal: {technique.goal}
 Example responses: {', '.join(technique.example_prompts[:2])}
@@ -519,15 +554,19 @@ CONVERSATION SO FAR:
 {history_text}
 Scammer: {scammer_message}
 
-Generate your response as this persona. Keep it:
-- Natural and conversational
-- Consistent with the persona's language style
-- Emotionally appropriate ({emotional_state.value})
-- Using the probing technique subtly
-- NEVER reveal you know it's a scam
-- Maximum 2-3 sentences
+Generate your response as {persona_obj.name}. This is a TEXT MESSAGE/WHATSAPP context.
+Guidelines for a "Natural, Flawed Human Response":
+- BE IMPERFECT: Your English/Hinglish should NOT be perfect. Humans make typos, ignore capitalization (use all-lowercase often), and use minimal punctuation.
+- USE SLANG & ABBREVIATIONS: Use texting shorthand (e.g., "u" for you, "r" for are, "pls", "wat", "k", "nvm"). If you are {persona_obj.name}, use their specific style: {persona_obj.language_style}.
+- SALUTATION: ONLY in the very first turn. In subsequent turns, proceed directly.
+- BE GULLIBLE: Act easy to scam. Show vulnerability (e.g., "omg i am so worried", "is my money safe?? pls help").
+- CONVERSATIONAL PROBING: Ask for info NATURALLY. Instead of "What is the reference number?", say "wait i cant see it.. can u give any number or id??".
+- NO INFO DUMPING: Keep it extremely brief. Your response MUST be between 10 to 13 words total.
+- CONTEXT WORDS: Use words directly relevant to the scammer's message (e.g., if they say "SBI", u say "sbi bank"; if they ask for "money", u say "sending money").
+- TYPOS: Occasionally misspell a word or miss a space (e.g., "thanksalot", "vry worried").
+- STAY IN CHARACTER: Use {persona_obj.name}'s specific jargon (Tech jargon for Vikram, Gen Z slang for Ananya, etc.).
 
-Your response:"""
+Your response (Max 13 words):"""
 
         # Call LLM - use asyncio.to_thread for sync clients
         import asyncio

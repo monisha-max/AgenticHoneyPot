@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     HIGH_CONFIDENCE_THRESHOLD: float = 0.85
 
     # Conversation Limits
-    MAX_CONVERSATION_TURNS: int = 30
+    MAX_CONVERSATION_TURNS: int = 10
     ENGAGE_PHASE_TURNS: int = 3
     PROBE_PHASE_TURNS: int = 5
     EXTRACT_PHASE_TURNS: int = 5

@@ -74,6 +74,7 @@ class PersonaType(str, Enum):
     AARTI_HOMEMAKER = "aarti_homemaker"
     VIKRAM_IT = "vikram_it"
     SUNITA_SHOP = "sunita_shop"
+    NEUTRAL_CITIZEN = "neutral_citizen"
 
 
 # ============================================================================
@@ -238,6 +239,14 @@ class SessionState(BaseModel):
 # CALLBACK SCHEMAS (for GUVI endpoint)
 # ============================================================================
 
+class ExtractedIntelligencePayload(BaseModel):
+    """Intelligence format for GUVI payload"""
+    bankAccounts: List[str] = []
+    upiIds: List[str] = []
+    phishingLinks: List[str] = []
+    phoneNumbers: List[str] = []
+    suspiciousKeywords: List[str] = []
+
 class GuviCallbackPayload(BaseModel):
     """
     Payload to send to GUVI evaluation endpoint
@@ -246,7 +255,7 @@ class GuviCallbackPayload(BaseModel):
     sessionId: str
     scamDetected: bool
     totalMessagesExchanged: int
-    extractedIntelligence: Dict[str, List[str]]
+    extractedIntelligence: ExtractedIntelligencePayload
     agentNotes: str
 
     class Config:

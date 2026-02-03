@@ -29,6 +29,8 @@ class EnsembleResult:
     tactics_identified: List[str] = field(default_factory=list)
     component_scores: dict = field(default_factory=dict)
     ml_scam_type: str = ""  # Original ML classification
+    reasoning: str = ""     # LLM reasoning
+    intent: str = ""        # LLM inferred intent
 
 
 class ScamDetectionEnsemble:
@@ -126,7 +128,16 @@ class ScamDetectionEnsemble:
         }
 
         # Determine if scam (with threshold)
-        is_scam = weighted_score >= settings.SCAM_CONFIDENCE_THRESHOLD
+        is_scam = bool(weighted_score >= 0.55) # Lowered from 0.60
+
+        # Boost for (Financial Request + Contact Entity) combo - classic scam signal
+        has_financial = any("financial" in m.category for m in rule_result.matches)
+        has_contact = len(pattern_result.entities_found.get("upi_ids", [])) > 0 or \
+                      len(pattern_result.entities_found.get("phone_numbers", [])) > 0
+        
+        if has_financial and has_contact:
+            weighted_score = max(weighted_score, 0.75) # Forced high confidence
+            is_scam = True
 
         # High confidence override from ML (trained on real data)
         if ml_result.confidence > 0.85:
@@ -135,7 +146,7 @@ class ScamDetectionEnsemble:
 
         # High confidence override from LLM
         if llm_result.confidence > settings.HIGH_CONFIDENCE_THRESHOLD:
-            is_scam = llm_result.is_scam
+            is_scam = bool(llm_result.is_scam)
             weighted_score = max(weighted_score, llm_result.confidence)
 
         logger.info(
@@ -153,7 +164,9 @@ class ScamDetectionEnsemble:
             entities_found=pattern_result.entities_found,
             tactics_identified=tactics,
             component_scores=component_scores,
-            ml_scam_type=ml_result.original_type
+            ml_scam_type=ml_result.original_type,
+            reasoning=llm_result.reasoning,
+            intent=llm_result.intent
         )
 
     def _determine_scam_type(

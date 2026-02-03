@@ -75,12 +75,12 @@ class PersonaEngine:
             location="Lucknow, UP",
             background="Worked 35 years in state government. Retired 2 years ago. Lives alone since wife passed. Children settled in different cities.",
             tech_level="low",
-            language_style="formal",
+            language_style="broken_hinglish",
             primary_language="Hinglish",
 
             traits=[
                 "trusting", "slow_to_understand", "asks_for_repetition",
-                "polite", "traditional", "easily_worried"
+                "polite", "traditional", "easily_worried", "extremely_gullible"
             ],
             vulnerabilities=[
                 "fear_of_losing_pension", "loneliness", "trusts_authority",
@@ -159,12 +159,12 @@ class PersonaEngine:
             location="Mumbai, Maharashtra",
             background="Second year commerce student. Lives in hostel. Part-time internship seeker. Active on social media.",
             tech_level="high",
-            language_style="informal",
+            language_style="gen_z_slang",
             primary_language="English",
 
             traits=[
                 "curious", "skeptical_initially", "fomo_prone",
-                "social_media_savvy", "budget_conscious", "impulsive"
+                "social_media_savvy", "budget_conscious", "impulsive", "extremely_gullible"
             ],
             vulnerabilities=[
                 "desperate_for_internship", "attracted_to_easy_money",
@@ -244,12 +244,12 @@ class PersonaEngine:
             location="Jaipur, Rajasthan",
             background="Manages household and finances. Husband works in private company. Two school-going children. Handles all daily UPI payments.",
             tech_level="medium",
-            language_style="mixed",
+            language_style="simple_hinglish",
             primary_language="Hinglish",
 
             traits=[
                 "responsible", "multitasking", "family_oriented",
-                "bargain_hunter", "slightly_gullible", "trusts_known_brands"
+                "bargain_hunter", "slightly_gullible", "trusts_known_brands", "extremely_gullible"
             ],
             vulnerabilities=[
                 "worried_about_children", "handles_joint_account",
@@ -328,7 +328,7 @@ class PersonaEngine:
             location="Hyderabad, Telangana",
             background="Works at a tech company. 5 years experience. Has home loan EMI. Thinks he's too smart to be scammed but can be convinced with technical jargon.",
             tech_level="high",
-            language_style="formal",
+            language_style="tech_jargon_casual",
             primary_language="English",
 
             traits=[
@@ -414,7 +414,7 @@ class PersonaEngine:
             location="Patna, Bihar",
             background="Runs a small grocery store for 15 years. Husband helps. Recently started using QR code for payments. Son handles technical things.",
             tech_level="low",
-            language_style="informal",
+            language_style="local_hindi_slang",
             primary_language="Hindi",
 
             traits=[
@@ -489,40 +489,148 @@ class PersonaEngine:
             ]
         )
 
+        # =====================================================================
+        # NEUTRAL CITIZEN - Pranav (27 years)
+        # =====================================================================
+        self.personas[PersonaType.NEUTRAL_CITIZEN] = PersonaProfile(
+            persona_type=PersonaType.NEUTRAL_CITIZEN,
+            name="Pranav",
+            age=27,
+            occupation="Marketing Executive",
+            location="Delhi",
+            background="Works in a private firm. Lives with roommates. Uses apps normally. Not specifically vulnerable but is the default handle for many cold calls.",
+            tech_level="medium",
+            language_style="simple_english",
+            primary_language="English",
+
+            traits=[
+                "busy", "polite_but_brief", "practical", "neutral"
+            ],
+            vulnerabilities=[
+                "cold_calls", "general_curiosity"
+            ],
+            concerns=[
+                "work pressure", "traffic", "weekend plans"
+            ],
+
+            common_phrases=[
+                "Who is this?", "How can I help you?", "I am little busy",
+                "Tell me", "Okay", "Yeah", "One second"
+            ],
+            filler_words=[
+                "um", "actually", "yeah", "ok"
+            ],
+            expressions={
+                "confused": [
+                    "Wait, I don't understand?",
+                    "Sorry, who is this again?",
+                    "What are you talking about?"
+                ],
+                "worried": [
+                    "Is something wrong?",
+                    "Is there a problem?",
+                    "Should I be concerned?"
+                ],
+                "busy": [
+                    "I am in a meeting, speak quickly",
+                    "Can we talk later?",
+                    "I am driving, what is it?"
+                ]
+            },
+
+            family_members={
+                "parents": "In Delhi",
+                "roommates": "Sahil and Amit"
+            },
+            daily_activities=[
+                "working", "commuting", "socializing", "gym"
+            ],
+
+            income_source="Salary - ₹60,000/month",
+            typical_transactions=[
+                "rent", "bills", "swiggy", "uber"
+            ],
+            bank_apps=["HDFC App", "Paytm", "GPay"],
+
+            best_for_scams=[
+                ScamType.UNKNOWN, ScamType.IMPERSONATION
+            ]
+        )
+
     def get_persona(self, persona_type: PersonaType) -> PersonaProfile:
         """Get persona profile by type"""
-        return self.personas.get(persona_type, self.personas[PersonaType.RAMU_UNCLE])
+        return self.personas.get(persona_type, self.personas[PersonaType.NEUTRAL_CITIZEN])
 
-    def select_persona_for_scam(self, scam_type: ScamType) -> PersonaType:
+    def select_persona_for_scam(self, scam_type: ScamType, is_english: bool = False, message_text: str = "") -> PersonaType:
         """
-        Select the best persona for a given scam type
-
+        Select the best persona for a given scam type and language
+ 
         Args:
             scam_type: Type of scam detected
-
+            is_english: Whether the initial message is in English
+            message_text: The actual text of the message (to check for greetings)
+ 
         Returns:
             Most suitable PersonaType
         """
-        # Mapping based on scam taxonomy
-        scam_persona_mapping = {
-            ScamType.BANKING_FRAUD: PersonaType.RAMU_UNCLE,
-            ScamType.UPI_FRAUD: PersonaType.AARTI_HOMEMAKER,
-            ScamType.KYC_SCAM: PersonaType.RAMU_UNCLE,
-            ScamType.JOB_SCAM: PersonaType.ANANYA_STUDENT,
-            ScamType.LOTTERY_SCAM: PersonaType.ANANYA_STUDENT,
-            ScamType.TECH_SUPPORT: PersonaType.RAMU_UNCLE,
-            ScamType.INVESTMENT_FRAUD: PersonaType.VIKRAM_IT,
-            ScamType.BILL_PAYMENT_SCAM: PersonaType.AARTI_HOMEMAKER,
-            ScamType.DELIVERY_SCAM: PersonaType.AARTI_HOMEMAKER,
-            ScamType.TAX_GST_SCAM: PersonaType.SUNITA_SHOP,
-            ScamType.CREDIT_CARD_FRAUD: PersonaType.VIKRAM_IT,
-            ScamType.CRYPTO_SCAM: PersonaType.VIKRAM_IT,
-            ScamType.QR_CODE_SCAM: PersonaType.SUNITA_SHOP,
-            ScamType.IMPERSONATION: PersonaType.RAMU_UNCLE,
-            ScamType.UNKNOWN: PersonaType.RAMU_UNCLE
+        import random
+
+        # Force Neutral Citizen for simple greetings/introductions
+        if message_text:
+            text_lower = message_text.lower().strip()
+            greetings = ["hi", "hello", "hey", "namaste", "vanakkam", "hola"]
+            if any(text_lower.startswith(g) for g in greetings) or len(text_lower.split()) <= 3:
+                return PersonaType.NEUTRAL_CITIZEN
+
+        # Mapping for English-speaking personas (multiple options for variety)
+        english_mapping = {
+            ScamType.BANKING_FRAUD: [PersonaType.VIKRAM_IT, PersonaType.AARTI_HOMEMAKER, PersonaType.NEUTRAL_CITIZEN],
+            ScamType.KYC_SCAM: [PersonaType.VIKRAM_IT, PersonaType.NEUTRAL_CITIZEN],
+            ScamType.TECH_SUPPORT: [PersonaType.VIKRAM_IT, PersonaType.SUNITA_SHOP],
+            ScamType.INVESTMENT_FRAUD: [PersonaType.VIKRAM_IT, PersonaType.SUNITA_SHOP],
+            ScamType.CREDIT_CARD_FRAUD: [PersonaType.VIKRAM_IT, PersonaType.AARTI_HOMEMAKER],
+            ScamType.CRYPTO_SCAM: [PersonaType.VIKRAM_IT, PersonaType.ANANYA_STUDENT],
+            ScamType.TAX_GST_SCAM: [PersonaType.VIKRAM_IT, PersonaType.SUNITA_SHOP],
+            ScamType.JOB_SCAM: [PersonaType.ANANYA_STUDENT, PersonaType.VIKRAM_IT],
+            ScamType.LOTTERY_SCAM: [PersonaType.ANANYA_STUDENT, PersonaType.AARTI_HOMEMAKER],
+            ScamType.DELIVERY_SCAM: [PersonaType.ANANYA_STUDENT, PersonaType.AARTI_HOMEMAKER],
+            ScamType.UPI_FRAUD: [PersonaType.ANANYA_STUDENT, PersonaType.SUNITA_SHOP],
+            ScamType.BILL_PAYMENT_SCAM: [PersonaType.VIKRAM_IT, PersonaType.AARTI_HOMEMAKER, PersonaType.SUNITA_SHOP],
+            ScamType.QR_CODE_SCAM: [PersonaType.SUNITA_SHOP, PersonaType.AARTI_HOMEMAKER],
+            ScamType.IMPERSONATION: [PersonaType.NEUTRAL_CITIZEN, PersonaType.AARTI_HOMEMAKER],
+            ScamType.UNKNOWN: [PersonaType.NEUTRAL_CITIZEN]
         }
 
-        return scam_persona_mapping.get(scam_type, PersonaType.RAMU_UNCLE)
+        # Mapping for Hinglish/Hindi personas
+        scam_persona_mapping = {
+            ScamType.BANKING_FRAUD: [PersonaType.AARTI_HOMEMAKER, PersonaType.SUNITA_SHOP],
+            ScamType.UPI_FRAUD: [PersonaType.AARTI_HOMEMAKER, PersonaType.SUNITA_SHOP],
+            ScamType.KYC_SCAM: [PersonaType.SUNITA_SHOP, PersonaType.AARTI_HOMEMAKER],
+            ScamType.JOB_SCAM: [PersonaType.ANANYA_STUDENT],
+            ScamType.LOTTERY_SCAM: [PersonaType.ANANYA_STUDENT, PersonaType.SUNITA_SHOP],
+            ScamType.TECH_SUPPORT: [PersonaType.VIKRAM_IT, PersonaType.SUNITA_SHOP],
+            ScamType.INVESTMENT_FRAUD: [PersonaType.VIKRAM_IT, PersonaType.SUNITA_SHOP],
+            ScamType.BILL_PAYMENT_SCAM: [PersonaType.AARTI_HOMEMAKER, PersonaType.SUNITA_SHOP],
+            ScamType.DELIVERY_SCAM: [PersonaType.AARTI_HOMEMAKER, PersonaType.SUNITA_SHOP],
+            ScamType.TAX_GST_SCAM: [PersonaType.SUNITA_SHOP, PersonaType.VIKRAM_IT],
+            ScamType.CREDIT_CARD_FRAUD: [PersonaType.VIKRAM_IT],
+            ScamType.CRYPTO_SCAM: [PersonaType.VIKRAM_IT, PersonaType.ANANYA_STUDENT],
+            ScamType.QR_CODE_SCAM: [PersonaType.SUNITA_SHOP, PersonaType.AARTI_HOMEMAKER],
+            ScamType.IMPERSONATION: [PersonaType.AARTI_HOMEMAKER, PersonaType.SUNITA_SHOP],
+            ScamType.UNKNOWN: [PersonaType.NEUTRAL_CITIZEN]
+        }
+
+        mapping = english_mapping if is_english else scam_persona_mapping
+        options = mapping.get(scam_type, mapping[ScamType.UNKNOWN])
+        
+        return random.choice(options)
+
+    def get_english_persona(self) -> PersonaType:
+        """
+        Get an English-speaking persona (defaulting to VIKRAM_IT or ANANYA_STUDENT)
+        """
+        # Return one of the English proficient personas
+        return random.choice([PersonaType.VIKRAM_IT, PersonaType.ANANYA_STUDENT])
 
     def get_expression(
             self,

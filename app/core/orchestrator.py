@@ -102,7 +102,7 @@ class ConversationOrchestrator:
             # Create a minimal state for fallback
             state = SessionState(
                 session_id=session_id,
-                persona=PersonaType.RAMU_UNCLE,
+                persona=PersonaType.NEUTRAL_CITIZEN,
                 emotional_state=EmotionalState.CONFUSED,
                 conversation_phase=ConversationPhase.ENGAGE,
                 turn_count=1
@@ -213,8 +213,17 @@ class ConversationOrchestrator:
             history_texts = []
             detection_result = await self.scam_detector.detect(message.text, history_texts)
 
-            # Select persona based on scam type
-            persona = self.persona_engine.select_persona_for_scam(detection_result.scam_type)
+            # Check if message is primarily English
+            is_english = self._is_primarily_english(message.text)
+            
+            # Select persona based on scam type and language
+            persona = self.persona_engine.select_persona_for_scam(
+                scam_type=detection_result.scam_type,
+                is_english=is_english,
+                message_text=message.text
+            )
+            
+            log_reason = f"scam={detection_result.scam_type.value}, english={is_english}"
 
             # Create new session with selected persona
             state = await self.session_manager.create_session(session_id, persona)
@@ -228,11 +237,26 @@ class ConversationOrchestrator:
             )
 
             logger.info(
-                f"Created new session {session_id} with persona {persona.value}, "
-                f"scam_type={detection_result.scam_type.value}"
+                f"Created new session {session_id} with persona {persona.value} "
+                f"due to {log_reason}"
             )
 
         return state
+
+    def _is_primarily_english(self, text: str) -> bool:
+        """
+        Check if text is primarily English (ASCII based).
+        """
+        if not text:
+            return False
+            
+        # Check basic ASCII ratio (English characters, numbers, basic punctuation)
+        ascii_chars = sum(1 for c in text if ord(c) < 128)
+        ascii_ratio = ascii_chars / len(text)
+        
+        # If it's mostly ASCII characters, treat it as English context
+        # This prevents defaulting to Hinglish personas for English inputs
+        return ascii_ratio >= 0.8
 
     async def _detect_scam(
             self,
@@ -270,6 +294,19 @@ class ConversationOrchestrator:
                 await self.session_manager.add_agent_note(
                     state.session_id,
                     f"Tactics: {tactics_summary}"
+                )
+
+            # Add persuasive intent and reasoning notes
+            if detection_result.intent:
+                await self.session_manager.add_agent_note(
+                    state.session_id,
+                    f"Scammer Intent: {detection_result.intent}"
+                )
+            
+            if detection_result.reasoning:
+                await self.session_manager.add_agent_note(
+                    state.session_id,
+                    f"Analysis: {detection_result.reasoning}"
                 )
 
         return state

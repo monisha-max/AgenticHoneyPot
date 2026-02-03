@@ -193,7 +193,9 @@ class PatternMatcher:
             ))
             entities["upi_ids"].append(upi)
             if is_suspicious:
-                suspicious_count += 1
+                suspicious_count += 2 # Strong signal
+            else:
+                suspicious_count += 1 # Unsolicited UPI is still a signal
 
         # Check phone numbers
         for pattern in self.phone_patterns:
@@ -209,7 +211,7 @@ class PatternMatcher:
                         reason="Unsolicited contact number"
                     ))
                     entities["phone_numbers"].append(clean_phone)
-                    suspicious_count += 1
+                    suspicious_count += 2 # Increased from 1
 
         # Check URLs
         url_matches = self.url_pattern.findall(all_text)

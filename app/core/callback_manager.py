@@ -64,29 +64,16 @@ class CallbackManager:
         Returns:
             GuviCallbackPayload ready to send
         """
-        # Convert intelligence to the expected format
-        intelligence_dict = {
-            "bankAccounts": state.intelligence.bank_accounts,
-            "upiIds": state.intelligence.upi_ids,
-            "phishingLinks": state.intelligence.phishing_links,
-            "phoneNumbers": state.intelligence.phone_numbers,
-            "suspiciousKeywords": state.intelligence.suspicious_keywords,
-            "emailAddresses": state.intelligence.email_addresses,
-            "ifscCodes": state.intelligence.ifsc_codes,
-            "scammerNames": state.intelligence.scammer_names,
-            "fakeReferences": state.intelligence.fake_references,
-            # Add URL analysis results
-            "urlAnalysis": [
-                {
-                    "url": ua.url,
-                    "riskLevel": ua.risk_level,
-                    "isPhishing": ua.is_phishing,
-                    "brandImpersonation": ua.brand_impersonation,
-                    "findings": ua.findings
-                }
-                for ua in state.intelligence.url_analysis
-            ] if state.intelligence.url_analysis else []
-        }
+        from app.api.schemas import ExtractedIntelligencePayload
+        
+        # Convert intelligence to exactly the requested 5-key format
+        intelligence_payload = ExtractedIntelligencePayload(
+            bankAccounts=state.intelligence.bank_accounts,
+            upiIds=state.intelligence.upi_ids,
+            phishingLinks=state.intelligence.phishing_links,
+            phoneNumbers=state.intelligence.phone_numbers,
+            suspiciousKeywords=state.intelligence.suspicious_keywords
+        )
 
         # Build agent notes summary
         agent_notes = self._generate_agent_notes(state)
@@ -95,7 +82,7 @@ class CallbackManager:
             sessionId=state.session_id,
             scamDetected=state.scam_detected,
             totalMessagesExchanged=state.turn_count * 2,  # Both scammer and agent messages
-            extractedIntelligence=intelligence_dict,
+            extractedIntelligence=intelligence_payload,
             agentNotes=agent_notes
         )
 
@@ -251,8 +238,14 @@ class CallbackManager:
         if state.turn_count >= 3: effectiveness_score += 10
         if state.confidence_score > 0.8: effectiveness_score += 10
 
-        effectiveness_level = "EXCELLENT" if effectiveness_score >= 70 else ("GOOD" if effectiveness_score >= 40 else "MODERATE")
-        notes_parts.append(f"[AGENT EFFECTIVENESS: {effectiveness_level}] Intelligence score: {effectiveness_score}/100")
+        # =====================================================================
+        # SUMMARY LINE (First Part)
+        # =====================================================================
+        summary = f"Scam detected with {confidence_level} confidence. "
+        if common_tactics:
+            summary += f"Observed tactics: {', '.join(common_tactics)}. "
+        summary += f"Engaged for {state.turn_count} turns using {state.persona.value} persona."
+        notes_parts.append(summary)
 
         return " || ".join(notes_parts)
 
@@ -483,6 +476,10 @@ class CompletionDetector:
         Returns:
             True if conversation should complete
         """
+        # Scam intent must be confirmed first
+        if not state.scam_detected:
+            return False
+
         # Max turns reached
         if state.turn_count >= settings.MAX_CONVERSATION_TURNS:
             logger.info(f"Session {state.session_id}: Max turns reached")
@@ -490,10 +487,10 @@ class CompletionDetector:
 
         # Sufficient intelligence gathered
         if self._has_sufficient_intelligence(state):
-            logger.info(f"Session {state.session_id}: Sufficient intelligence")
+            logger.info(f"Session {state.session_id}: Sufficient intelligence gathered")
             return True
 
-        # Already complete - use enum comparison
+        # Already marked as complete (PROBE -> EXTRACT -> STALL -> COMPLETE)
         if state.conversation_phase == ConversationPhase.COMPLETE:
             return True
 
@@ -501,26 +498,39 @@ class CompletionDetector:
 
     def _has_sufficient_intelligence(self, state: SessionState) -> bool:
         """
-        Check if we've gathered enough intelligence
-
-        Args:
-            state: Current session state
+        Check if we've gathered enough intelligence to satisfy the payload
 
         Returns:
             True if sufficient intelligence gathered
         """
+        # Minimum engagement turns
+        if state.turn_count < 2:
+            return False
+
         intel = state.intelligence
 
-        # Consider complete if we have at least one of each key identifier
-        has_contact = len(intel.phone_numbers) > 0 or len(intel.email_addresses) > 0
+        # Major identifying categories
         has_payment = len(intel.upi_ids) > 0 or len(intel.bank_accounts) > 0
-        has_keywords = len(intel.suspicious_keywords) >= 3
+        has_link = len(intel.phishing_links) > 0
+        has_contact = len(intel.phone_numbers) > 0
+        has_enough_keywords = len(intel.suspicious_keywords) >= 3
 
-        # Need contact + payment info, or extended conversation with keywords
-        if has_contact and has_payment:
+        # Completion Criteria:
+        # 1. We have a payment method (UPI/Bank) AND a contact method or link
+        if has_payment and (has_contact or has_link):
             return True
 
-        if has_keywords and state.turn_count >= 10:
+        # 2. We have both a link AND a contact method
+        if has_link and has_contact:
+            return True
+
+        # 3. We have gathered a lot of details (at least 3 categories covered)
+        categories_count = sum([has_payment, has_link, has_contact, has_enough_keywords])
+        if categories_count >= 3:
+            return True
+
+        # 4. If we have at least one main detail and it's getting long
+        if (has_payment or has_link) and state.turn_count >= 7:
             return True
 
         return False

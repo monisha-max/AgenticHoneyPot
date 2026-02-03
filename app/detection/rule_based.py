@@ -150,22 +150,27 @@ class RuleBasedDetector:
                 "bhim upi", "amazon pay", "mobikwik", "freecharge",
                 "savings account", "current account", "fixed deposit",
                 "neft", "rtgs", "imps", "upi transfer",
-                "bank transfer", "wire transfer", "money transfer",
+                "bank transfer", "wire_transfer", "money transfer",
                 "processing fee", "registration fee", "advance payment",
                 "security deposit", "refundable deposit", "token amount",
                 "gst", "tds", "income tax", "tax refund", "tax due",
                 "loan approved", "loan sanction", "emi", "credit limit",
-                "insurance premium", "policy payment", "claim amount"
+                "insurance premium", "policy payment", "claim amount",
+                "pay this number", "send to this number", "transfer money",
+                "pay to me", "send me the money", "account mein bhejo",
+                "money bhejo", "rupees send", "pay kardo", "payment kardo"
             ],
             "medium": [
                 "transaction", "balance", "amount", "rupees",
                 "rs", "₹", "money", "funds", "refund", "cashback",
                 "paisa", "rupe", "lakh", "crore", "thousand",
                 "payment pending", "payment due", "outstanding",
-                "wallet balance", "bank balance", "account balance"
+                "wallet balance", "bank balance", "account balance",
+                "bhejo", "bhejiye", "daal do", "transfer karo"
             ],
             "low": [
-                "wallet", "pay", "receive", "send", "credit", "debit"
+                "wallet", "pay", "receive", "send", "credit", "debit",
+                "cost", "price", "charge", "fee"
             ]
         }
 
