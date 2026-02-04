@@ -575,11 +575,12 @@ class PersonaEngine:
         """
         import random
 
-        # Force Neutral Citizen for simple greetings/introductions
+        # Force Neutral Citizen for PURE greetings only (greeting AND short message)
         if message_text:
             text_lower = message_text.lower().strip()
             greetings = ["hi", "hello", "hey", "namaste", "vanakkam", "hola"]
-            if any(text_lower.startswith(g) for g in greetings) or len(text_lower.split()) <= 3:
+            # Only use Neutral Citizen for pure greetings like "hi", "hello there"
+            if any(text_lower.startswith(g) for g in greetings) and len(text_lower.split()) <= 3:
                 return PersonaType.NEUTRAL_CITIZEN
 
         # Mapping for English-speaking personas (multiple options for variety)
