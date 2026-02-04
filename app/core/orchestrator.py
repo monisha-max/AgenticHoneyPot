@@ -52,7 +52,10 @@ class ConversationOrchestrator:
     def __init__(self):
         """Initialize all components"""
         # Core managers
-        self.session_manager = SessionManager()
+        import sys
+        sys.stderr.write(f"DEBUG: orchestrator init: settings.USE_REDIS = {settings.USE_REDIS}\n")
+        sys.stderr.flush()
+        self.session_manager = SessionManager(use_redis=settings.USE_REDIS)
         self.callback_manager = CallbackManager()
         self.completion_detector = CompletionDetector(self.callback_manager)
 
@@ -256,7 +259,7 @@ class ConversationOrchestrator:
         
         # If it's mostly ASCII characters, treat it as English context
         # This prevents defaulting to Hinglish personas for English inputs
-        return ascii_ratio >= 0.8
+        return ascii_ratio >= 0.99
 
     async def _detect_scam(
             self,

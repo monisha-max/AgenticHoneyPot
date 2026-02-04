@@ -577,9 +577,9 @@ class PersonaEngine:
 
         # Force Neutral Citizen for PURE greetings only (greeting AND short message)
         if message_text:
-            text_lower = message_text.lower().strip()
+            text_lower = message_text.lower().strip().rstrip("!?.,")
             greetings = ["hi", "hello", "hey", "namaste", "vanakkam", "hola"]
-            # Only use Neutral Citizen for pure greetings like "hi", "hello there"
+            # Detect greeting and ensure it's short (1-3 words)
             if any(text_lower.startswith(g) for g in greetings) and len(text_lower.split()) <= 3:
                 return PersonaType.NEUTRAL_CITIZEN
 

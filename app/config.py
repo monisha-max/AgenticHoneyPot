@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     USE_REDIS: bool = True  # Toggle to switch between Redis and in-memory store
     REDIS_STRICT: bool = False  # When true, fail instead of falling back to memory
     REDIS_URL: str = "redis://localhost:6379/0"
+    USE_REDIS: bool = False
+    REDIS_STRICT: bool = False
     SESSION_TTL: int = 3600  # 1 hour session timeout
 
     # GUVI Callback Configuration
@@ -59,6 +61,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"
 
 
 @lru_cache()

@@ -120,8 +120,14 @@ class RedisSessionStore(SessionStore):
         if self._client is None:
             try:
                 import redis.asyncio as redis
+                import sys
+                sys.stderr.write(f"DEBUG: Creating Redis client for {self.redis_url}\n")
+                sys.stderr.flush()
                 self._client = redis.from_url(self.redis_url)
             except ImportError:
+                import sys
+                sys.stderr.write("DEBUG: Redis package 'redis.asyncio' NOT found\n")
+                sys.stderr.flush()
                 logger.warning("Redis package not installed, falling back to in-memory store")
                 raise
         return self._client
@@ -135,6 +141,9 @@ class RedisSessionStore(SessionStore):
                 return json.loads(data)
             return None
         except Exception as e:
+            import sys
+            sys.stderr.write(f"DEBUG: Redis GET error: {e}\n")
+            sys.stderr.flush()
             logger.error(f"Redis get error: {e}")
             return None
 
@@ -150,6 +159,9 @@ class RedisSessionStore(SessionStore):
             )
             return True
         except Exception as e:
+            import sys
+            sys.stderr.write(f"DEBUG: Redis SET error for {session_id}: {e}\n")
+            sys.stderr.flush()
             logger.error(f"Redis set error: {e}")
             return False
 
@@ -188,22 +200,21 @@ class SessionManager:
         Initialize session manager
 
         Args:
-            use_redis: Whether to use Redis backend. Defaults to settings.USE_REDIS.
-            require_redis: When True, do not fall back to in-memory; raise on Redis errors.
+            use_redis: Whether to use Redis backend (default: False for dev)
         """
-        use_redis = settings.USE_REDIS if use_redis is None else use_redis
-        require_redis = settings.REDIS_STRICT if require_redis is None else require_redis
-
         if use_redis:
             try:
                 self.store = RedisSessionStore()
-            except Exception as exc:
-                if require_redis:
-                    logger.error("Redis required but initialization failed; aborting.")
-                    raise
-                logger.warning(f"Failed to initialize Redis, using in-memory store: {exc}")
+                sys.stderr.write("DEBUG: session_manager initialized with RedisSessionStore\n")
+                sys.stderr.flush()
+            except Exception as e:
+                sys.stderr.write(f"DEBUG: Failed to init RedisStore: {e}\n")
+                sys.stderr.flush()
+                logger.warning("Failed to initialize Redis, using in-memory store")
                 self.store = InMemorySessionStore()
         else:
+            sys.stderr.write("DEBUG: session_manager initialized with InMemorySessionStore\n")
+            sys.stderr.flush()
             self.store = InMemorySessionStore()
 
         self._stats = {
