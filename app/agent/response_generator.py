@@ -468,6 +468,120 @@ class ResponseGenerator:
         }
         responses = greeting_responses.get(persona, greeting_responses[PersonaType.RAMU_UNCLE])
         return random.choice(responses)
+    def _is_out_of_context(self, message: str) -> bool:
+        """Check if message is out of context / irrelevant to scam conversation"""
+        out_of_context_keywords = [
+            "what did you eat", "ate", "food", "lunch", "dinner", "breakfast", "snack",
+            "are you hungry", "thirsty", "drink", "beverage",
+            "family", "parents", "mother", "father", "mom", "dad",
+            "how's weather", "weather", "rain", "sunny", "cold", "hot", "temperature",
+            "what's your name", "your age", "how old", "where do you live", "address",
+            "what's your job", "do you work", "occupation", "career",
+            "favorite color", "favorite movie", "favorite sport", "like to", "hobby",
+            "boyfriend", "girlfriend", "married", "relationship", "dating",
+            "school", "college", "studied", "degree", "course",
+            "how many siblings", "brother", "sister", "family",
+            "what's your number", "phone number", "mobile number",
+            "are you real", "are you bot", "are you human", "artificial intelligence" , "are you eating"
+        ]
+        
+        msg_lower = message.lower().strip()
+        # Check if any out-of-context keyword is present
+        for keyword in out_of_context_keywords:
+            if keyword in msg_lower:
+                return True
+        return False
+
+    async def _get_out_of_context_response(self, persona: PersonaType) -> str:
+        """Get confused/neutral response for out-of-context questions
+        
+        Handles both LLM generation and fallback templates
+        """
+        out_of_context_templates = {
+            PersonaType.RAMU_UNCLE: [
+                "Arey, yeh kya pooch rahe ho? Relevant baat karo na.",
+                "Huh? Iska kya matlab? Yeh sab baad mein poochna.",
+                "Beta, main iska jawab nahi doonga. Bank ka issue solve kar."
+            ],
+            PersonaType.ANANYA_STUDENT: [
+                "um why are u asking me that?? 😅",
+                "huh? thats random lol... can we get back to this?",
+                "ok but like... thats kinda weird to ask rn??"
+            ],
+            PersonaType.AARTI_HOMEMAKER: [
+                "Arey, yeh kya pooch rahe ho? Baat relevant karo.",
+                "Ji, iska samay nahi hai abhi. Aage batao.",
+                "Huh? Yeh sab baad mein. Pehle iska issue batao."
+            ],
+            PersonaType.VIKRAM_IT: [
+                "That's not relevant right now. Can we focus on the issue?",
+                "Why are you asking that? Let's stick to the matter at hand.",
+                "That's random. Can we get back to what you were saying?"
+            ],
+            PersonaType.SUNITA_SHOP: [
+                "Arey, yeh kya baat kar rahe ho? Dukaan ka kaam batao.",
+                "Huh? Iska matlab kya? Pehle issue solve kar.",
+                "Beta, relevant baat karo. Mera time barbaad mat kar."
+            ]
+        }
+        
+        # Try LLM first if available
+        if self.llm_client:
+            try:
+                persona_obj = self.persona_engine.get_persona(persona)
+                logger.info(f"OUT-OF-CONTEXT: Persona={persona_obj.name}, Language={persona_obj.primary_language}, Style={persona_obj.language_style}")
+                print(f"OUT-OF-CONTEXT PERSONA: {persona_obj.name} ({persona_obj.primary_language})")
+                
+                if self.llm_provider == "openai":
+                    # Build persona-aware system message based on language
+                    if persona_obj.primary_language == "English":
+                        system_msg = f"""You are {persona_obj.name}, a {persona_obj.age}-year-old {persona_obj.occupation}.
+
+When asked irrelevant/out-of-context questions, respond with CONFUSION in ENGLISH ONLY.
+- Show you don't understand why they're asking this
+- Redirect to the main topic
+- NEVER respond in Hindi or Hinglish
+- Keep it very short (1 sentence max, 10 words max)
+
+Example: "That's random. Can we focus on this?" , "\I don't get why you're asking that. Let's continue."""
+                    else:
+                        system_msg = f"""You are {persona_obj.name}, a naive Indian person.
+
+When asked irrelevant/out-of-context questions, respond with CONFUSION in HINGLISH/HINDI ONLY.
+- Show you don't understand why they're asking this
+- Redirect to the main topic
+- Use simple Hindi/Hinglish mixed with English
+- Keep it very short (1 sentence max, 10 words max)
+
+Example: "Arey, yeh kya pooch rahe ho? Relevant baat karo na." , "Huh? Iska kya matlab?.
+"""
+                    
+                    prompt = f"Someone asked you an irrelevant question. Respond with confusion and redirect to the main topic.\n\nRespond in {persona_obj.primary_language} ONLY. Stay in character. Max 10 words.\n\nJust say you don't understand why they're asking this - keep it GENERIC, don't mention specific topics."
+                    
+                    def _openai_call():
+                        return self.llm_client.chat.completions.create(
+                            model=settings.LLM_MODEL,
+                            messages=[
+                                {"role": "system", "content": system_msg},
+                                {"role": "user", "content": prompt}
+                            ],
+                            temperature=0.5,
+                            max_tokens=30
+                        )
+                    import asyncio
+                    response = await asyncio.to_thread(_openai_call)
+                    llm_response = response.choices[0].message.content.strip()
+                    if llm_response:
+                        logger.info(f"OUT-OF-CONTEXT LLM RESPONSE: {llm_response}")
+                        return llm_response
+            except Exception as e:
+                logger.warning(f"LLM out-of-context generation failed: {e}. Using template.")
+        
+        # Fallback to templates
+        responses = out_of_context_templates.get(persona, out_of_context_templates[PersonaType.RAMU_UNCLE])
+        chosen_response = random.choice(responses)
+        logger.info(f"OUT-OF-CONTEXT TEMPLATE RESPONSE: {chosen_response}")
+        return chosen_response
 
     async def generate_response(
             self,
@@ -489,6 +603,12 @@ class ResponseGenerator:
         # Check for simple greetings first - respond naturally
         if self._is_simple_greeting(scammer_message) and len(conversation_history) <= 1:
             return self._get_greeting_response(state.persona)
+
+        # Check for out-of-context questions - respond with confusion
+        is_out_of_context = self._is_out_of_context(scammer_message)
+        if is_out_of_context:
+            logger.info(f"OUT-OF-CONTEXT question detected: {scammer_message}")
+            return await self._get_out_of_context_response(state.persona)
 
         # Get current persona and phase
         persona = state.persona
