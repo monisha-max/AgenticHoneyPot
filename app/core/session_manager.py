@@ -5,6 +5,7 @@ Supports both in-memory (dev) and Redis (production) backends
 """
 
 import json
+import sys
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
