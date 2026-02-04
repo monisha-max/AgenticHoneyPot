@@ -183,18 +183,25 @@ class SessionManager:
     Handles session creation, updates, and state transitions
     """
 
-    def __init__(self, use_redis: bool = False):
+    def __init__(self, use_redis: bool = None, require_redis: bool = None):
         """
         Initialize session manager
 
         Args:
-            use_redis: Whether to use Redis backend (default: False for dev)
+            use_redis: Whether to use Redis backend. Defaults to settings.USE_REDIS.
+            require_redis: When True, do not fall back to in-memory; raise on Redis errors.
         """
+        use_redis = settings.USE_REDIS if use_redis is None else use_redis
+        require_redis = settings.REDIS_STRICT if require_redis is None else require_redis
+
         if use_redis:
             try:
                 self.store = RedisSessionStore()
-            except Exception:
-                logger.warning("Failed to initialize Redis, using in-memory store")
+            except Exception as exc:
+                if require_redis:
+                    logger.error("Redis required but initialization failed; aborting.")
+                    raise
+                logger.warning(f"Failed to initialize Redis, using in-memory store: {exc}")
                 self.store = InMemorySessionStore()
         else:
             self.store = InMemorySessionStore()

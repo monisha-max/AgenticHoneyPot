@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: int = 500
 
     # Redis Configuration (for session management)
+    USE_REDIS: bool = True  # Toggle to switch between Redis and in-memory store
+    REDIS_STRICT: bool = False  # When true, fail instead of falling back to memory
     REDIS_URL: str = "redis://localhost:6379/0"
     SESSION_TTL: int = 3600  # 1 hour session timeout
 

@@ -17,6 +17,8 @@ services:
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - USE_REDIS=${USE_REDIS:-true}
+      - REDIS_STRICT=${REDIS_STRICT:-false}
       - REDIS_URL=redis://redis:6379/0
       - GUVI_CALLBACK_URL=${GUVI_CALLBACK_URL:-https://hackathon.guvi.in/api/updateHoneyPotFinalResult}
     depends_on:
