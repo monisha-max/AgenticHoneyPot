@@ -468,120 +468,6 @@ class ResponseGenerator:
         }
         responses = greeting_responses.get(persona, greeting_responses[PersonaType.RAMU_UNCLE])
         return random.choice(responses)
-    def _is_out_of_context(self, message: str) -> bool:
-        """Check if message is out of context / irrelevant to scam conversation"""
-        out_of_context_keywords = [
-            "what did you eat", "ate", "food", "lunch", "dinner", "breakfast", "snack",
-            "are you hungry", "thirsty", "drink", "beverage",
-            "family", "parents", "mother", "father", "mom", "dad",
-            "how's weather", "weather", "rain", "sunny", "cold", "hot", "temperature",
-            "what's your name", "your age", "how old", "where do you live", "address",
-            "what's your job", "do you work", "occupation", "career",
-            "favorite color", "favorite movie", "favorite sport", "like to", "hobby",
-            "boyfriend", "girlfriend", "married", "relationship", "dating",
-            "school", "college", "studied", "degree", "course",
-            "how many siblings", "brother", "sister", "family",
-            "what's your number", "phone number", "mobile number",
-            "are you real", "are you bot", "are you human", "artificial intelligence" , "are you eating"
-        ]
-        
-        msg_lower = message.lower().strip()
-        # Check if any out-of-context keyword is present
-        for keyword in out_of_context_keywords:
-            if keyword in msg_lower:
-                return True
-        return False
-
-    async def _get_out_of_context_response(self, persona: PersonaType) -> str:
-        """Get confused/neutral response for out-of-context questions
-        
-        Handles both LLM generation and fallback templates
-        """
-        out_of_context_templates = {
-            PersonaType.RAMU_UNCLE: [
-                "Arey, yeh kya pooch rahe ho? Relevant baat karo na.",
-                "Huh? Iska kya matlab? Yeh sab baad mein poochna.",
-                "Beta, main iska jawab nahi doonga. Bank ka issue solve kar."
-            ],
-            PersonaType.ANANYA_STUDENT: [
-                "um why are u asking me that?? 😅",
-                "huh? thats random lol... can we get back to this?",
-                "ok but like... thats kinda weird to ask rn??"
-            ],
-            PersonaType.AARTI_HOMEMAKER: [
-                "Arey, yeh kya pooch rahe ho? Baat relevant karo.",
-                "Ji, iska samay nahi hai abhi. Aage batao.",
-                "Huh? Yeh sab baad mein. Pehle iska issue batao."
-            ],
-            PersonaType.VIKRAM_IT: [
-                "That's not relevant right now. Can we focus on the issue?",
-                "Why are you asking that? Let's stick to the matter at hand.",
-                "That's random. Can we get back to what you were saying?"
-            ],
-            PersonaType.SUNITA_SHOP: [
-                "Arey, yeh kya baat kar rahe ho? Dukaan ka kaam batao.",
-                "Huh? Iska matlab kya? Pehle issue solve kar.",
-                "Beta, relevant baat karo. Mera time barbaad mat kar."
-            ]
-        }
-        
-        # Try LLM first if available
-        if self.llm_client:
-            try:
-                persona_obj = self.persona_engine.get_persona(persona)
-                logger.info(f"OUT-OF-CONTEXT: Persona={persona_obj.name}, Language={persona_obj.primary_language}, Style={persona_obj.language_style}")
-                print(f"OUT-OF-CONTEXT PERSONA: {persona_obj.name} ({persona_obj.primary_language})")
-                
-                if self.llm_provider == "openai":
-                    # Build persona-aware system message based on language
-                    if persona_obj.primary_language == "English":
-                        system_msg = f"""You are {persona_obj.name}, a {persona_obj.age}-year-old {persona_obj.occupation}.
-
-When asked irrelevant/out-of-context questions, respond with CONFUSION in ENGLISH ONLY.
-- Show you don't understand why they're asking this
-- Redirect to the main topic
-- NEVER respond in Hindi or Hinglish
-- Keep it very short (1 sentence max, 10 words max)
-
-Example: "That's random. Can we focus on this?" , "\I don't get why you're asking that. Let's continue."""
-                    else:
-                        system_msg = f"""You are {persona_obj.name}, a naive Indian person.
-
-When asked irrelevant/out-of-context questions, respond with CONFUSION in HINGLISH/HINDI ONLY.
-- Show you don't understand why they're asking this
-- Redirect to the main topic
-- Use simple Hindi/Hinglish mixed with English
-- Keep it very short (1 sentence max, 10 words max)
-
-Example: "Arey, yeh kya pooch rahe ho? Relevant baat karo na." , "Huh? Iska kya matlab?.
-"""
-                    
-                    prompt = f"Someone asked you an irrelevant question. Respond with confusion and redirect to the main topic.\n\nRespond in {persona_obj.primary_language} ONLY. Stay in character. Max 10 words.\n\nJust say you don't understand why they're asking this - keep it GENERIC, don't mention specific topics."
-                    
-                    def _openai_call():
-                        return self.llm_client.chat.completions.create(
-                            model=settings.LLM_MODEL,
-                            messages=[
-                                {"role": "system", "content": system_msg},
-                                {"role": "user", "content": prompt}
-                            ],
-                            temperature=0.5,
-                            max_tokens=30
-                        )
-                    import asyncio
-                    response = await asyncio.to_thread(_openai_call)
-                    llm_response = response.choices[0].message.content.strip()
-                    if llm_response:
-                        logger.info(f"OUT-OF-CONTEXT LLM RESPONSE: {llm_response}")
-                        return llm_response
-            except Exception as e:
-                logger.warning(f"LLM out-of-context generation failed: {e}. Using template.")
-        
-        # Fallback to templates
-        responses = out_of_context_templates.get(persona, out_of_context_templates[PersonaType.RAMU_UNCLE])
-        chosen_response = random.choice(responses)
-        logger.info(f"OUT-OF-CONTEXT TEMPLATE RESPONSE: {chosen_response}")
-        return chosen_response
 
     async def generate_response(
             self,
@@ -603,12 +489,6 @@ Example: "Arey, yeh kya pooch rahe ho? Relevant baat karo na." , "Huh? Iska kya 
         # Check for simple greetings first - respond naturally
         if self._is_simple_greeting(scammer_message) and len(conversation_history) <= 1:
             return self._get_greeting_response(state.persona)
-
-        # Check for out-of-context questions - respond with confusion
-        is_out_of_context = self._is_out_of_context(scammer_message)
-        if is_out_of_context:
-            logger.info(f"OUT-OF-CONTEXT question detected: {scammer_message}")
-            return await self._get_out_of_context_response(state.persona)
 
         # Get current persona and phase
         persona = state.persona
@@ -722,30 +602,39 @@ Example responses: {', '.join(technique.example_prompts[:2])}
             observable_examples = """- Turn 1-2: CONFUSED ONLY → "who is this?", "what?", "sorry didnt get that", "who are you?"
 - Turn 3-4: Start understanding → "ok so you mean...", "so i need to pay?"
 - Turn 5+: Willing to help, extract info → "give me upi id", "whats your number", "your name pls"""""
-            evident_examples = """- Scammer gives UPI → "ok [upi] right? whats your phone number"
-- Scammer gives phone → "ok [number]. whats your name?"
-- Scammer gives name → "alright [name]. email id pls"
+            evident_examples = """- Scammer gives their UPI → confirm it: "ok that upi right? whats your phone number"
+- Scammer gives their phone → confirm it: "ok got it. whats your name?"
+- Scammer gives their name → confirm it: "alright. email id pls"
+- Scammer ASKS for YOUR UPI → ask for THEIRS: "ok but whats your upi? where do i send?"
 - Scammer OFFERS prize/salary → "wow how do i get it?" NOT "i need money"
 - Scammer asks for OTP → "otp not received yet", "didnt get any otp", "network issue wait"
-- Scammer asks account/aadhar/pan → "app not opening", "one sec checking", "which one u need?"
-- NEVER share actual OTP/account/password. Stall with tech issues."""
+- Scammer asks YOUR account/aadhar → "app not opening", "one sec checking", "which one u need?"
+- NEVER share YOUR info. Ask for THEIR details first."""
             style_note = "Sound like real casual English texting. Lowercase ok, skip punctuation. Gen-Z if Ananya, professional if Vikram."
         else:
             # Hinglish/Hindi examples for Ramu Uncle, Aarti, Sunita
             observable_examples = """- Turn 1-2: CONFUSED ONLY → "kaun?", "kya?", "samjha nai", "kaun bol raha?"
 - Turn 3-4: Start understanding → "accha matlab...", "toh paise bhejne hai?"
 - Turn 5+: Willing to help, extract info → "upi do", "phone number batao", "naam kya hai"""""
-            evident_examples = """- Scammer gives UPI → "accha [upi] pe? phone number do"
-- Scammer gives phone → "ok [number]. naam kya hai?"
-- Scammer gives name → "theek hai [name]. email do"
+            evident_examples = """- Scammer gives their UPI → confirm it: "accha woh upi pe? phone number do"
+- Scammer gives their phone → confirm it: "ok theek hai. naam kya hai?"
+- Scammer gives their name → confirm it: "accha. email do"
+- Scammer ASKS for YOUR UPI → ask for THEIRS: "accha par aapka upi kya hai? kahan bhejun?"
 - Scammer OFFERS prize/salary → "wow kaise milega?" NOT "paise chahiye?"
 - Scammer asks for OTP → "otp nahi aaya abhi tak", "ruko bhej raha hai", "network slow hai"
-- Scammer asks account/aadhar → "app nahi khul raha", "ek minute", "konsa number chahiye?"
-- NEVER share actual OTP/account/password. Stall with tech issues."""
+- Scammer asks YOUR account/aadhar → "app nahi khul raha", "ek minute", "konsa number chahiye?"
+- NEVER share YOUR info. Ask for THEIR details first."""
             style_note = "Sound like REAL Indian texting in Hinglish. typos ok, lowercase ok, skip punctuation."
 
         prompt = f"""
 === OCEAN PROMPT FRAMEWORK ===
+
+**MISSION**: You are a HONEYPOT pretending to be a naive victim. Your goal is to EXTRACT the scammer's identity:
+- Their UPI ID (for payment tracing)
+- Their phone number (for reporting)
+- Their name (for identification)
+- Their email (for tracking)
+Keep them engaged. Act gullible. Collect their details while pretending to fall for their scam.
 
 **OBSERVABLE** (Target behavior for Turn {turn_num}):
 {observable_examples}
@@ -794,6 +683,13 @@ Your response as {persona_obj.name}:"""
             if is_english_persona:
                 ocean_system = f"""=== OCEAN FRAMEWORK (Turn {turn_count}) ===
 
+**MISSION**: You are a HONEYPOT pretending to be a naive victim. Your goal is to EXTRACT the scammer's identity:
+- Their UPI ID (for payment tracing)
+- Their phone number (for reporting)
+- Their name (for identification)
+- Their email (for tracking)
+Keep them engaged. Act gullible. Collect their details while pretending to fall for their scam.
+
 **O - OBSERVABLE** (Target behavior):
 - Turn 1-2: CONFUSED ONLY → "who is this?", "what?", "sorry?"
 - Turn 3-4: UNDERSTANDING → "ok so you mean...", "so i pay?"
@@ -803,13 +699,14 @@ Your response as {persona_obj.name}:"""
 Turn {turn_count}. You are {persona_obj.name}, naive English-speaking Indian.
 
 **E - EVIDENT** (Extraction rules):
-- Scammer gives UPI → "ok [upi]? whats your phone number"
-- Scammer gives phone → "ok [number]. whats your name?"
-- Scammer gives name → "alright [name]. email pls"
+- Scammer gives their UPI → confirm it and ask for phone: "ok that upi? whats your phone number"
+- Scammer gives their phone → confirm and ask name: "ok got it. whats your name?"
+- Scammer gives their name → confirm and ask email: "alright. email id pls"
+- Scammer ASKS for YOUR UPI/details → ask for THEIR details first: "ok but whats your upi? where do i send?"
 - Scammer OFFERS prize/salary → "wow how do i get it?" NOT "i need money"
 - Scammer asks OTP → "otp not received", "didnt get it yet", "network issue"
-- Scammer asks account/aadhar → "app not opening wait", "one sec checking"
-- NEVER share OTP/account/password. Stall with tech excuses.
+- Scammer asks YOUR account/aadhar → "app not opening wait", "one sec checking"
+- NEVER share YOUR info. Always ask for THEIR details first.
 
 **A - ASSERTIVE** (Style):
 - ENGLISH ONLY. Casual texting style. lowercase ok.
@@ -821,6 +718,13 @@ You're gullible, trusting, want to help. Never suspicious."""
             else:
                 ocean_system = f"""=== OCEAN FRAMEWORK (Turn {turn_count}) ===
 
+**MISSION**: You are a HONEYPOT pretending to be a naive victim. Your goal is to EXTRACT the scammer's identity:
+- Their UPI ID (for payment tracing)
+- Their phone number (for reporting)
+- Their name (for identification)
+- Their email (for tracking)
+Keep them engaged. Act gullible. Collect their details while pretending to fall for their scam.
+
 **O - OBSERVABLE** (Target behavior):
 - Turn 1-2: CONFUSED ONLY → "kaun?", "kya?", "samjha nai"
 - Turn 3-4: UNDERSTANDING → "accha matlab...", "toh paise?"
@@ -830,13 +734,14 @@ You're gullible, trusting, want to help. Never suspicious."""
 Turn {turn_count}. You are {persona_obj.name}, naive Hinglish-speaking Indian.
 
 **E - EVIDENT** (Extraction rules):
-- Scammer gives UPI → "accha [upi] pe? phone number do"
-- Scammer gives phone → "ok [number]. naam kya hai?"
-- Scammer gives name → "theek hai [name]. email do"
+- Scammer gives their UPI → confirm and ask phone: "accha woh upi pe? phone number do"
+- Scammer gives their phone → confirm and ask name: "ok theek hai. naam kya hai?"
+- Scammer gives their name → confirm and ask email: "accha. email id do"
+- Scammer ASKS for YOUR UPI/details → ask for THEIR details: "accha par aapka upi kya hai? kahan bhejun?"
 - Scammer OFFERS prize/salary → "wow kaise milega?" NOT "paise chahiye?"
 - Scammer asks OTP → "otp nahi aaya", "ruko aa raha hai", "network issue"
-- Scammer asks account/aadhar → "app nahi khul raha", "ek minute ruko"
-- NEVER share OTP/account/password. Stall with tech excuses.
+- Scammer asks YOUR account/aadhar → "app nahi khul raha", "ek minute ruko"
+- NEVER share YOUR info. Always ask for THEIR details first.
 
 **A - ASSERTIVE** (Style):
 - Real Indian Hinglish texting: typos ok, lowercase, no punctuation

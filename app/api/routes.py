@@ -33,25 +33,24 @@ logger = logging.getLogger(__name__)
 # Create router
 router = APIRouter()
 
-# Initialize components (will be properly initialized in main.py)
-session_manager: Optional[SessionManager] = None
-orchestrator: Optional[ConversationOrchestrator] = None
-
-
-def get_session_manager() -> SessionManager:
-    """Dependency to get session manager"""
-    global session_manager
-    if session_manager is None:
-        session_manager = SessionManager()
-    return session_manager
+# Initialize components (singleton pattern)
+_orchestrator: Optional[ConversationOrchestrator] = None
 
 
 def get_orchestrator() -> ConversationOrchestrator:
-    """Dependency to get orchestrator"""
-    global orchestrator
-    if orchestrator is None:
-        orchestrator = ConversationOrchestrator()
-    return orchestrator
+    """Dependency to get orchestrator (singleton)"""
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = ConversationOrchestrator()
+    return _orchestrator
+
+
+def get_session_manager() -> SessionManager:
+    """
+    Dependency to get session manager.
+    Uses the orchestrator's session manager to ensure consistency.
+    """
+    return get_orchestrator().session_manager
 
 
 # ============================================================================
