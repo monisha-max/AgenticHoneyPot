@@ -227,6 +227,19 @@ class CallbackManager:
                     notes_parts.append(url_info)
 
         # =====================================================================
+        # VICTIM RISK ASSESSMENT
+        # =====================================================================
+        victim_risk = self._calculate_victim_risk(state)
+        risk_level = "CRITICAL" if victim_risk >= 8 else ("HIGH" if victim_risk >= 6 else ("MEDIUM" if victim_risk >= 4 else "LOW"))
+        risk_description = {
+            "CRITICAL": "Victim at immediate risk of significant financial/data loss",
+            "HIGH": "Victim vulnerable to financial loss or serious data compromise",
+            "MEDIUM": "Victim has some vulnerability, potential for moderate loss",
+            "LOW": "Victim showed good defense/caution, minimal risk"
+        }
+        notes_parts.append(f"[VICTIM RISK LEVEL] {risk_level} ({victim_risk:.1f}/10) - {risk_description[risk_level]}")
+
+        # =====================================================================
         # AGENT EFFECTIVENESS SUMMARY
         # =====================================================================
         effectiveness_score = 0
@@ -248,6 +261,74 @@ class CallbackManager:
         notes_parts.append(summary)
 
         return " || ".join(notes_parts)
+
+    def _calculate_victim_risk(self, state: SessionState) -> float:
+        """
+        Calculate risk level for the victim (0-10 scale)
+
+        Factors:
+        - Money amounts mentioned (higher = more risk)
+        - Personal data shared (name, account, etc.)
+        - Victim compliance (did they go along with it?)
+        - Scam type severity
+        - Conversation length (more turns = more risk)
+        - Urgency tactics used
+
+        Returns:
+            Risk score 0-10
+        """
+        risk_score = 0.0
+        intel = state.intelligence
+
+        # Factor 1: Financial amounts mentioned (up to 3 points)
+        money_keywords = [
+            '5000', '10000', '50000', '100000', '1000000',
+            'rupees', 'rs', 'amount', 'payment', 'transfer',
+            '500', '1000', '2000', '20000'
+        ]
+        conversation_text = ' '.join([msg.get('text', '').lower() for msg in [
+            {'text': getattr(state, 'conversation_history', [{}])[-1].get('text', '')}
+        ]])
+        has_money_mention = any(kw in conversation_text for kw in money_keywords)
+        if has_money_mention:
+            risk_score += 3.0
+
+        # Factor 2: Personal data shared (up to 2.5 points)
+        if intel.scammer_names: risk_score += 0.5  # Victim identified
+        if intel.phone_numbers: risk_score += 1.0  # Phone is critical
+        if intel.bank_accounts: risk_score += 1.0  # Bank account very critical
+
+        # Factor 3: Victim compliance level (up to 2 points)
+        if state.emotional_state in [EmotionalState.COMPLIANT, EmotionalState.TRUSTING]:
+            risk_score += 2.0  # Victim was cooperative/trusting
+        elif state.emotional_state in [EmotionalState.WORRIED, EmotionalState.PANICKED]:
+            risk_score += 1.5  # Victim was scared (easier to manipulate)
+        elif state.emotional_state == EmotionalState.CONFUSED:
+            risk_score += 1.0  # Victim was confused (vulnerable)
+
+        # Factor 4: Scam type severity (up to 1.5 points)
+        high_severity_scams = [
+            ScamType.BANKING_FRAUD,
+            ScamType.UPI_FRAUD,
+            ScamType.CRYPTO_SCAM,
+            ScamType.INVESTMENT_FRAUD
+        ]
+        if state.scam_type in high_severity_scams:
+            risk_score += 1.5
+
+        # Factor 5: Conversation engagement (up to 1.5 points)
+        # More turns = scammer was successful in keeping victim engaged
+        if state.turn_count >= 10: risk_score += 1.5
+        elif state.turn_count >= 6: risk_score += 1.0
+        elif state.turn_count >= 3: risk_score += 0.5
+
+        # Factor 6: Urgency tactics detected (up to 1.5 points)
+        urgency_keywords = ['urgent', 'immediately', 'now', 'quickly', 'asap', 'emergency']
+        if any(kw in str(intel.suspicious_keywords).lower() for kw in urgency_keywords):
+            risk_score += 1.5
+
+        # Cap at 10
+        return min(10.0, risk_score)
 
     async def send_callback(
             self,

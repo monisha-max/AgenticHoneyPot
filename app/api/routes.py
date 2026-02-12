@@ -263,9 +263,32 @@ async def process_message(
 
         logger.info(f"Generated response for session: {request.sessionId}")
 
+        # Get session state to extract intelligence and other metadata
+        state = await sm.get_session(request.sessionId)
+
+        # Build extracted intelligence from state
+        extracted_intel = {}
+        if state and state.intelligence:
+            intel = state.intelligence
+            extracted_intel = {
+                "names": intel.scammer_names or [],
+                "phones": intel.phone_numbers or [],
+                "upis": intel.upi_ids or [],
+                "emails": intel.email_addresses or [],
+                "bankAccounts": intel.bank_accounts or []
+            }
+
+        # Build agent notes
+        agent_notes = ""
+        if state:
+            agent_notes = f"Phase: {state.conversation_phase.value}, Emotion: {state.emotional_state.value}"
+
         return HoneypotResponse(
             status="success",
-            reply=response
+            reply=response,
+            scamDetected=state.scam_detected if state else False,
+            extractedIntelligence=extracted_intel if extracted_intel else {},
+            agentNotes=agent_notes
         )
 
     except ValueError as e:

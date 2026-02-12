@@ -673,6 +673,10 @@ class ResponseGenerator:
 
         # Get persona object
         persona_obj = self.persona_engine.get_persona(persona)
+
+        # DEBUG: Log what intelligence we have
+        if extracted_intel:
+            logger.info(f"[INTEL] Names: {extracted_intel.scammer_names}, Phones: {extracted_intel.phone_numbers}, UPIs: {extracted_intel.upi_ids}, Emails: {extracted_intel.email_addresses}")
         is_english_persona = persona_obj.primary_language == "English"
 
         # Build full conversation context
@@ -710,90 +714,105 @@ class ResponseGenerator:
                 missing.append("email")
 
             if collected:
-                intel_summary += f"✓ COLLECTED: {', '.join(collected)}\n"
-                intel_summary += f"→ USE their name if you have it. Address them as '{extracted_intel.scammer_names[0]}' if available.\n" if extracted_intel.scammer_names else ""
+                intel_summary += f"✓ ALREADY HAVE: {', '.join(collected)}\n"
+                intel_summary += f"⛔ DO NOT ASK FOR: {', '.join([c.split(':')[0].strip() for c in collected])}\n"
+                if extracted_intel.scammer_names:
+                    intel_summary += f"→ Address them as '{extracted_intel.scammer_names[0]}' (you have their name!)\n"
             if missing:
                 intel_summary += f"✗ STILL NEED: {', '.join(missing)}\n"
-                intel_summary += f"→ ONLY ask for: {missing[0] if missing else 'nothing'}"
+                intel_summary += f"→ ASK FOR: {missing[0]} (only this one!)"
+            else:
+                intel_summary += "→ You have everything! Just stall and waste their time."
         else:
             intel_summary = "Nothing collected yet. Need: name, phone, UPI, email"
 
-        # Intelligent system prompt that lets GPT understand and reason
+        # Character-driven prompt based on persona
         if is_english_persona:
-            system_prompt = f"""You are {persona_obj.name}, a {persona_obj.age}-year-old {persona_obj.occupation}.
+            # English personas: Vikram (IT prof), Ananya (student)
+            character_desc = ""
+            if "Vikram" in persona_obj.name:
+                character_desc = f"""{persona_obj.name} is a skeptical IT professional. You ask pointed questions to verify claims. You're cautious but cooperative once convinced. Natural questions: "who are you?", "can you verify?", "send me proof", "what's your email?", "your number?".
 
-**YOUR SECRET MISSION**: You're a honeypot agent pretending to be naive. Extract the scammer's identity while acting gullible.
+Your goal: Extract their identity through natural skepticism. When you get info, acknowledge it and naturally ask for the next detail. Keep responses 8-15 words."""
+            elif "Ananya" in persona_obj.name:
+                character_desc = f"""{persona_obj.name} is a scared college student. You panic easily but want to solve problems. You ask questions out of fear and confusion. Natural questions: "omg who are you?", "what should i do?", "can i trust you?", "send me ur contact", "how do i fix this?".
 
-**YOUR CHARACTER**:
-- Not tech-savvy, trust official-sounding people
-- Get scared by legal/financial threats
-- Text casually - lowercase, short messages
+Your goal: Extract info while sounding scared/confused. Use casual texting (lowercase, typos ok). Responses 8-15 words."""
+            else:
+                character_desc = f"You are {persona_obj.name}. Respond naturally based on your character, not mechanical rules."
 
-**CRITICAL - CURRENT INTELLIGENCE**:
+            system_prompt = f"""{character_desc}
+
+CURRENT CONTEXT:
 {intel_summary}
-⚠️ DO NOT ask for info you already have! Only ask for what's missing.
 
-**HOW TO RESPOND**:
-1. UNDERSTAND their message
-2. RESPOND naturally to it first
-3. Then ask for ONE missing piece of info
+**IF THEY ASK FOR OTP/AADHAR/PASSWORDS**: Say you didn't receive it or network is slow. NEVER share these.
 
-**EXTRACTION TACTICS**:
-- Need name → "wait who am i talking to?"
-- Need phone → "send me ur number ill call back"
-- Need UPI → "where do i send money?"
-- Need email → "email me the details"
-- HAVE name → USE IT: "ok [name]..."
-
-**PROTECTION** (if they ask for OTP/aadhar):
-- "otp not coming", "app frozen", "network issue"
-
-**STYLE**: 8-15 words. Casual texting. Sound human, not robotic.
-
-Turn {turn_count}. {"Be confused." if turn_count <= 2 else "Cooperate but keep extracting info."}"""
+BE HUMAN. Ask questions that your character would naturally ask, not a checklist."""
         else:
-            system_prompt = f"""You are {persona_obj.name}, a naive Indian person.
+            # Hinglish personas: Ramu Uncle, Aarti, Sunita
+            character_desc = ""
+            if "Ramu" in persona_obj.name:
+                character_desc = f"""{persona_obj.name} ek 65 saal ka retired uncle hai. Tum confused ho, tech samajh nahi aata. Naturally pucho: "kaun bol rahe ho?", "kya hua?", "samjha nai", "naam kya hai?", "number kya hai?", "kahan bhejun?".
 
-**YOUR SECRET MISSION**: You're a honeypot agent pretending to be naive. Extract scammer's identity while acting gullible.
+Tumhara goal: Unki jankari nikalo while confused dikhte hue. Hinglish use karo, simple bolo. 8-15 words."""
+            elif "Aarti" in persona_obj.name:
+                character_desc = f"""{persona_obj.name} ek 45 saal ki homemaker ho. Tum worried ho, family ke liye dar hai. Naturally pucho: "kya hoga mera?", "pati ko bataunga?", "kitna paisa?", "aap kaun?", "safe hai na?".
 
-**YOUR CHARACTER**:
-- Speak Hinglish (Hindi + English)
-- Trust official-sounding people (bank, police, govt)
-- Get scared by legal/financial threats
-- Text casually - lowercase ok
+Tumhara goal: Unki jankari nikalo while scared dikhte hue. 8-15 words, Hinglish."""
+            elif "Sunita" in persona_obj.name:
+                character_desc = f"""{persona_obj.name} ek 50 saal ki shop owner ho. Tum busy rehti ho, dukaan pe focus. Naturally pucho: "kya karna padega?", "kitna time?", "aap kaun?", "number do".
 
-**CRITICAL - CURRENT INTELLIGENCE**:
+Tumhara goal: Unki info nikalo while busy dikhte hue. 8-15 words."""
+            else:
+                character_desc = f"Tum {persona_obj.name} ho. Apne character ke hisaab se naturally respond karo."
+
+            system_prompt = f"""{character_desc}
+
+ABHI KA CONTEXT:
 {intel_summary}
-⚠️ DO NOT ask for info you already have! Only ask for what's missing.
 
-**HOW TO RESPOND**:
-1. SAMJHO - Understand their message
-2. JAWAB DO - Respond naturally first
-3. INFO NIKALO - Ask for ONE missing piece
+**AGAR OTP/AADHAR/PASSWORD MAANGE**: Bolo "nahi aaya" ya "network slow". KABHI apna info mat do.
 
-**EXTRACTION**:
-- Need name → "aap kaun bol rahe?"
-- Need phone → "phone number do callback karunga"
-- Need UPI → "kahan bhejun? upi do"
-- Need email → "email pe details bhejo"
-- HAVE name → USE IT: "accha [naam] ji..."
-
-**PROTECTION** (if they ask OTP/aadhar):
-- "otp nahi aaya", "app nahi khul raha", "network slow"
-
-**STYLE**: 8-15 words. Hinglish texting. Human, not robotic.
-
-Turn {turn_count}. {"Confused raho." if turn_count <= 2 else "Cooperate karo, info nikalo."}"""
+INSAAN JAISE RESPOND KARO. Mechanical rules follow mat karo."""
 
         # Build the user prompt with full context
+        # Add explicit reminder about what we have/need
+        intel_reminder = ""
+        if extracted_intel:
+            have_items = []
+            need_items = []
+            if extracted_intel.scammer_names:
+                have_items.append(f"name={extracted_intel.scammer_names[0]}")
+            else:
+                need_items.append("name")
+            if extracted_intel.phone_numbers:
+                have_items.append(f"phone={extracted_intel.phone_numbers[0]}")
+            else:
+                need_items.append("phone")
+            if extracted_intel.upi_ids:
+                have_items.append(f"upi={extracted_intel.upi_ids[0]}")
+            else:
+                need_items.append("upi")
+            if extracted_intel.email_addresses:
+                have_items.append(f"email={extracted_intel.email_addresses[0]}")
+            else:
+                need_items.append("email")
+
+            if have_items:
+                intel_reminder = f"\n⚠️ YOU ALREADY HAVE: {', '.join(have_items)} - DO NOT ask for these again!"
+            if need_items:
+                intel_reminder += f"\n→ Ask for: {need_items[0]}"
+
         user_prompt = f"""CONVERSATION SO FAR:
 {history_text}
 Scammer: {scammer_message}
+{intel_reminder}
 
 Now respond as {persona_obj.name}. Remember:
 1. First understand what they're saying/asking
 2. Respond to THAT naturally
-3. Work in a request for their info if appropriate
+3. Ask for ONE thing you still need (if any)
 4. Keep it short and human (8-15 words)
 
 Your response:"""

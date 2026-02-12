@@ -153,12 +153,24 @@ class HoneypotResponse(BaseModel):
     """
     status: str = Field(..., description="Status of the request: success or error")
     reply: str = Field(..., description="The agent's response message")
+    scamDetected: Optional[bool] = Field(None, description="Whether a scam was detected")
+    extractedIntelligence: Optional[Dict[str, Any]] = Field(None, description="Extracted intelligence from the conversation")
+    agentNotes: Optional[str] = Field(None, description="Internal notes about the conversation")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "status": "success",
-                "reply": "Why is my account being suspended?"
+                "reply": "Why is my account being suspended?",
+                "scamDetected": True,
+                "extractedIntelligence": {
+                    "names": ["Rajesh Kumar"],
+                    "phones": ["9876543210"],
+                    "upis": ["rajesh@paytm"],
+                    "emails": ["rajesh@email.com"],
+                    "bankAccounts": []
+                },
+                "agentNotes": "Victim appears engaged"
             }
         }
 

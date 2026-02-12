@@ -334,7 +334,7 @@ class EntityExtractor:
         return list(set(emails))
 
     def _extract_names(self, text: str) -> List[str]:
-        """Extract potential scammer names"""
+        """Extract potential scammer names - both contextual and standalone"""
         names = []
 
         # Common words that are NOT names - filter these out
@@ -356,9 +356,13 @@ class EntityExtractor:
             'rbi', 'npci', 'upi', 'paytm', 'phonepe', 'gpay', 'amazon',
             # Government/organization names
             'government', 'ministry', 'department', 'police', 'customs',
-            'income', 'tax', 'gst', 'cyber', 'cell', 'office', 'head'
+            'income', 'tax', 'gst', 'cyber', 'cell', 'office', 'head',
+            # Common response words
+            'ok', 'yes', 'no', 'sure', 'done', 'hello', 'hi', 'thanks',
+            'help', 'call', 'send', 'check', 'wait', 'hold', 'ok'
         }
 
+        # ===== PATTERN-BASED EXTRACTION (contextual) =====
         for pattern in self.name_patterns:
             matches = pattern.findall(text)
             for name in matches:
@@ -381,6 +385,68 @@ class EntityExtractor:
                 # Name must be >= 3 chars AND (single word OR <= 3 words)
                 if len(clean_name) >= 3 and (' ' not in clean_name or len(clean_name.split()) <= 3):
                     names.append(clean_name)
+
+        # ===== FLEXIBLE STANDALONE NAME EXTRACTION =====
+        # Look for words that are likely names (capitalized OR response context)
+        # Split into lines/sentences for better context
+        sentences = re.split(r'[.!?;\n]', text)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+
+            # Look for standalone words that are likely names
+            words = sentence.split()
+
+            # Special case: single word response (very likely a name)
+            if len(words) == 1:
+                word = words[0]
+                # Must be all alphabetic and >= 3 chars
+                if len(word) >= 3 and re.match(r'^[A-Za-z]+$', word) and word.lower() not in non_names:
+                    clean_word = word.title()
+                    if len(clean_word) >= 3:
+                        names.append(clean_word)
+                continue
+
+            # Multi-word analysis
+            for i, word in enumerate(words):
+                # Skip if word is too short, all caps, or contains numbers/special chars
+                if len(word) < 3 or word.isupper() or not re.match(r'^[A-Za-z]+$', word):
+                    continue
+
+                # Skip if it's a non-name
+                if word.lower() in non_names:
+                    continue
+
+                # Check if it's capitalized (likely a proper noun/name)
+                if word[0].isupper():
+                    clean_word = word.title()
+
+                    # Additional validation:
+                    # - If it's the first word AND followed by non-names, likely just sentence start
+                    # - If it's a standalone word in a response, likely a name
+                    is_likely_name = False
+
+                    if i == 0:
+                        # First word: only if it's the ONLY word or others after aren't verbs/articles
+                        if len(words) == 1:
+                            is_likely_name = True
+                        elif i + 1 < len(words):
+                            next_word = words[i + 1].lower()
+                            # If next word is a verb/article/preposition, current word is likely not a name
+                            verbs_articles = {'is', 'are', 'the', 'a', 'an', 'from', 'of', 'here', 'calling'}
+                            if next_word not in verbs_articles:
+                                is_likely_name = True
+                    else:
+                        # Not first word: likely a name
+                        is_likely_name = True
+
+                    # Additional check: if sentence is very short (1-3 words), likely a name/response
+                    if len(words) <= 3:
+                        is_likely_name = True
+
+                    if is_likely_name and len(clean_word) >= 3:
+                        names.append(clean_word)
 
         return list(set(names))
 
