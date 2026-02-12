@@ -42,13 +42,18 @@ class EntityExtractor:
             re.IGNORECASE
         )
 
-        # Indian phone number patterns - enhanced
+        # Indian phone number patterns - enhanced with strict boundaries
         self.phone_patterns = [
-            re.compile(r'\+91[\s.-]?([6-9]\d{9})'),
-            re.compile(r'(?<!\d)0?([6-9]\d{9})(?!\d)'),
-            re.compile(r'([6-9]\d{4})[\s.-]?(\d{5})'),
-            re.compile(r'(?:call|contact|phone|mobile|whatsapp|wa)[\s:.-]*(?:\+?91)?[\s.-]?([6-9]\d{9})', re.IGNORECASE),
-            re.compile(r'91([6-9]\d{9})'),  # Without plus
+            # With +91 prefix (high confidence)
+            re.compile(r'\+91[\s.-]?([6-9]\d{9})\b'),
+            # With context keywords (high confidence)
+            re.compile(r'(?:call|contact|phone|mobile|whatsapp|wa|number|no\.|num)[\s:.-]*(?:\+?91)?[\s.-]?([6-9]\d{9})\b', re.IGNORECASE),
+            # Standalone 10-digit with strict word boundary (must not be part of longer number)
+            re.compile(r'(?:^|[^\d])([6-9]\d{9})(?:[^\d]|$)'),
+            # With 91 prefix (no plus)
+            re.compile(r'\b91[\s.-]?([6-9]\d{9})\b'),
+            # Split format like 98765-43210
+            re.compile(r'\b([6-9]\d{4})[\s.-](\d{5})\b'),
         ]
 
         # Bank account number - with context
@@ -332,11 +337,38 @@ class EntityExtractor:
         """Extract potential scammer names"""
         names = []
 
+        # Common words that are NOT names - filter these out
+        non_names = {
+            # Pronouns and common words
+            'me', 'you', 'us', 'them', 'him', 'her', 'it', 'this', 'that',
+            'here', 'there', 'now', 'then', 'today', 'tomorrow', 'anytime',
+            'anyone', 'someone', 'everyone', 'nobody', 'sir', 'madam', 'mam',
+            'dear', 'customer', 'user', 'member', 'client', 'person',
+            'urgent', 'immediately', 'important', 'please', 'kindly',
+            'bank', 'account', 'payment', 'verify', 'update', 'click',
+            'the', 'and', 'for', 'with', 'from', 'about', 'your', 'our',
+            'regarding', 'related', 'concerning', 'matter', 'issue',
+            # Bank names - NOT person names
+            'sbi', 'hdfc', 'icici', 'axis', 'kotak', 'pnb', 'bob', 'canara',
+            'union', 'idbi', 'idfc', 'yes', 'rbl', 'federal', 'bandhan',
+            'indusind', 'hsbc', 'citi', 'standard', 'chartered', 'dbs',
+            'rbi', 'npci', 'upi', 'paytm', 'phonepe', 'gpay', 'amazon',
+            # Government/organization names
+            'government', 'ministry', 'department', 'police', 'customs',
+            'income', 'tax', 'gst', 'cyber', 'cell', 'office', 'head'
+        }
+
         for pattern in self.name_patterns:
             matches = pattern.findall(text)
             for name in matches:
                 # Clean and validate
                 clean_name = name.strip().title()
+
+                # Skip if any word in the name is a non-name word
+                name_words = clean_name.lower().split()
+                if any(word in non_names for word in name_words):
+                    continue
+
                 # Fix operator precedence: name must be >= 3 chars AND (single word OR <= 3 words)
                 if len(clean_name) >= 3 and (' ' not in clean_name or len(clean_name.split()) <= 3):
                     names.append(clean_name)

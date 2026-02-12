@@ -93,14 +93,20 @@ class RuleBasedDetector:
                 "giraftar", "kaid", "jurmana", "saza",
                 "khatarnak", "illegal activity", "violation detected",
                 "security threat", "unauthorized access", "breach detected",
-                "lose everything", "all your money", "data stolen"
+                "lose everything", "all your money", "data stolen",
+                # SIM/Telecom threats
+                "sim blocked", "sim deactivated", "sim suspended", "sim cancelled",
+                "sim will be blocked", "sim band", "number blocked", "number deactivated",
+                "aadhaar not linked", "aadhaar verification", "verify aadhaar",
+                "trai", "telecom", "mobile number blocked", "outgoing blocked"
             ],
             "medium": [
                 "deactivated", "restricted", "frozen", "hold",
                 "investigation", "fraud alert", "security breach",
                 "suspicious activity", "unusual transaction", "risk detected",
                 "verification failed", "identity mismatch", "flagged",
-                "under review", "compliance issue", "regulatory action"
+                "under review", "compliance issue", "regulatory action",
+                "suspicious", "account suspicious", "activity suspicious"
             ],
             "low": [
                 "issue", "problem", "concern", "attention needed",
@@ -413,6 +419,28 @@ class RuleBasedDetector:
         # Also boost if impersonation + money request
         if impersonation_score > 0 and (financial_score > 0 or "need money" in text_lower or "send money" in text_lower or "gpay" in text_lower):
             base_score = min(1.0, base_score + 0.3)
+
+        # Boost for impersonation + threat (classic scam pattern: "I am from RBI, your account is suspicious")
+        if impersonation_score > 0 and threat_score > 0:
+            base_score = min(1.0, base_score + 0.45)  # Strong boost
+
+        # Boost for SIM/telecom scam patterns
+        if any(kw in text_lower for kw in ["sim", "aadhaar", "trai", "telecom"]) and threat_score > 0:
+            base_score = min(1.0, base_score + 0.3)
+
+        # Direct pattern match for common scam openings (high confidence)
+        import re
+        scam_opening_detected = False
+        scam_opening_patterns = [
+            r"(i am|this is|calling) from (rbi|sbi|hdfc|icici|axis|bank|police|customs)",
+            r"(your|ur) (account|a/c|ac).*(suspicious|blocked|fraud|illegal|freeze)",
+            r"(rbi|sbi|bank|police).*(calling|notice|alert)",
+        ]
+        for pattern in scam_opening_patterns:
+            if re.search(pattern, text_lower):
+                base_score = min(1.0, base_score + 0.4)
+                scam_opening_detected = True
+                break
 
         # Determine scam type
         scam_type = self._determine_scam_type(all_text)
