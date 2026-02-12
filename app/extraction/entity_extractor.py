@@ -365,12 +365,20 @@ class EntityExtractor:
                 # Clean and validate
                 clean_name = name.strip().title()
 
-                # Skip if any word in the name is a non-name word
-                name_words = clean_name.lower().split()
-                if any(word in non_names for word in name_words):
+                # Filter out non-name words from the end (e.g., "Ram From" → "Ram")
+                name_words = clean_name.split()
+                filtered_words = []
+                for word in name_words:
+                    if word.lower() in non_names:
+                        break  # Stop at first non-name word
+                    filtered_words.append(word)
+
+                if not filtered_words:
                     continue
 
-                # Fix operator precedence: name must be >= 3 chars AND (single word OR <= 3 words)
+                clean_name = " ".join(filtered_words)
+
+                # Name must be >= 3 chars AND (single word OR <= 3 words)
                 if len(clean_name) >= 3 and (' ' not in clean_name or len(clean_name.split()) <= 3):
                     names.append(clean_name)
 

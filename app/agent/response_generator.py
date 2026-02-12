@@ -643,7 +643,8 @@ class ResponseGenerator:
                     emotional_state=new_emotion,
                     technique=technique,
                     scammer_message=scammer_message,
-                    conversation_history=conversation_history
+                    conversation_history=conversation_history,
+                    extracted_intel=state.intelligence
                 )
                 if response:
                     return response
@@ -665,240 +666,152 @@ class ResponseGenerator:
             emotional_state: EmotionalState,
             technique: ProbingTechnique,
             scammer_message: str,
-            conversation_history: List[Dict[str, Any]]
+            conversation_history: List[Dict[str, Any]],
+            extracted_intel: 'ExtractedIntelligence' = None
     ) -> Optional[str]:
-        """Generate response using LLM"""
+        """Generate response using LLM with intelligent context understanding"""
 
-        # Check cache first for faster response
-        cached = _llm_cache.get(persona.value, phase.value, emotional_state.value, scammer_message)
-        if cached:
-            logger.info("Using cached LLM response")
-            return cached
-
-        # Get persona object and context
+        # Get persona object
         persona_obj = self.persona_engine.get_persona(persona)
-        persona_context = self.persona_engine.get_context_for_llm(persona)
-
-        # Get emotional context
-        emotion_desc = self.emotional_state_machine.get_current_state_description(emotional_state)
-
-        # Detect if it's a simple greeting or introduction
-        greeting_words = {"hi", "hello", "hey", "hola", "namaste", "gm", "gn", "whatsapp"}
-        scammer_lower = scammer_message.lower()
-        # Count messages from scammer to see if this is their first message
-        scammer_msg_count = sum(1 for msg in conversation_history if msg.get("sender") == "scammer")
-        
-        is_greeting = any(scammer_lower.startswith(g) for g in greeting_words) or \
-                      (scammer_msg_count == 0 and ("this is" in scammer_lower or "i am" in scammer_lower or "is this" in scammer_lower))
-
-        # Technique guidance - only use if not a simple greeting on first turn
-        if is_greeting and len(conversation_history) <= 1:
-            name_inst = f"If they call you a different name (like Pranav), naturally say you aren't them or be confused. If they address you correctly as {persona_obj.name}, just say hi."
-            technique_guidance = f"""
-STAY IN CHARACTER: This is an unknown contact. Just reply with a simple, natural greeting.
-- {name_inst}
-- Ask who they are or how they got your number.
-- Do NOT assume there is an 'issue' or 'problem' yet. 
-- Keep it to one short sentence.
-"""
-        else:
-            technique_guidance = f"""
-Current probing technique: {technique.name}
-Goal: {technique.goal}
-Example responses: {', '.join(technique.example_prompts[:2])}
-"""
-
-        # Build conversation context
-        history_text = ""
-        for msg in conversation_history[-50:]:  # Last 6 messages
-            sender = "Scammer" if msg.get("sender") == "scammer" else "You"
-            history_text += f"{sender}: {msg.get('text', '')}\n"
-
-        # Build the prompt using OCEAN framework
-        turn_num = len(conversation_history) // 2 + 1
-
-        # Language-aware examples for OCEAN framework
         is_english_persona = persona_obj.primary_language == "English"
 
-        if is_english_persona:
-            # English examples for Vikram IT and Ananya Student
-            observable_examples = """- Turn 1-2: CONFUSED ONLY → "who is this?", "what?", "sorry didnt get that", "who are you?"
-- Turn 3-4: Start understanding → "ok so you mean...", "so i need to pay?"
-- Turn 5+: Willing to help, extract info → "give me upi id", "whats your number","""""
-            evident_examples = """- Scammer gives UPI → "ok [upi] right? thanks. whats your phone number"
-- Scammer gives phone → "ok [number]. do u have official id card?"
-- Scammer gives name → "alright [name]. email id pls"
-- Scammer OFFERS prize/salary → "wow how do i get it?" NOT "i need money"
-- Scammer asks for OTP → "otp not received yet", "didnt get any otp", "network issue wait"
-- Scammer asks YOUR account/aadhar → "app not opening", "one sec checking", "which one u need?"
-- NEVER share YOUR info. Ask for THEIR details first."""
-            style_note = "Sound like real casual English texting. Lowercase ok, skip punctuation. Gen-Z if Ananya, professional if Vikram."
+        # Build full conversation context
+        history_text = ""
+        for msg in conversation_history[-20:]:
+            sender = "Scammer" if msg.get("sender") == "scammer" else "Me"
+            history_text += f"{sender}: {msg.get('text', '')}\n"
+
+        turn_count = len(conversation_history) // 2 + 1
+
+        # Build intelligence summary - what we know and what we need
+        intel_summary = ""
+        if extracted_intel:
+            collected = []
+            missing = []
+
+            if extracted_intel.upi_ids:
+                collected.append(f"UPI: {extracted_intel.upi_ids[0]}")
+            else:
+                missing.append("UPI ID")
+
+            if extracted_intel.phone_numbers:
+                collected.append(f"Phone: {extracted_intel.phone_numbers[0]}")
+            else:
+                missing.append("phone number")
+
+            if extracted_intel.scammer_names:
+                collected.append(f"Name: {extracted_intel.scammer_names[0]}")
+            else:
+                missing.append("name")
+
+            if extracted_intel.email_addresses:
+                collected.append(f"Email: {extracted_intel.email_addresses[0]}")
+            else:
+                missing.append("email")
+
+            if collected:
+                intel_summary += f"✓ COLLECTED: {', '.join(collected)}\n"
+                intel_summary += f"→ USE their name if you have it. Address them as '{extracted_intel.scammer_names[0]}' if available.\n" if extracted_intel.scammer_names else ""
+            if missing:
+                intel_summary += f"✗ STILL NEED: {', '.join(missing)}\n"
+                intel_summary += f"→ ONLY ask for: {missing[0] if missing else 'nothing'}"
         else:
-            # Hinglish/Hindi examples for Ramu Uncle, Aarti, Sunita
-            observable_examples = """- Turn 1-2: CONFUSED ONLY → "kaun?", "kya?", "samjha nai", "kaun bol raha?"
-- Turn 3-4: Start understanding → "accha matlab...", "toh paise bhejne hai?"
-- Turn 5+: Willing to help, extract info → "upi do", "phone number batao", "naam kya hai"""""
-            evident_examples = """- Scammer gives UPI → "accha [upi] pe? phone number do"
-- Scammer gives phone → "ok [number]. id hai kya?"
-- Scammer gives name → "theek hai [name]. email do"
-- Scammer OFFERS prize/salary → "wow kaise milega?" NOT "paise chahiye?"
-- Scammer asks for OTP → "otp nahi aaya abhi tak", "ruko bhej raha hai", "network slow hai"
-- Scammer asks YOUR account/aadhar → "app nahi khul raha", "ek minute", "konsa number chahiye?"
-- NEVER share YOUR info. Ask for THEIR details first."""
-            style_note = "Sound like REAL Indian texting in Hinglish. typos ok, lowercase ok, skip punctuation."
+            intel_summary = "Nothing collected yet. Need: name, phone, UPI, email"
 
-        prompt = f"""
-=== OCEAN PROMPT FRAMEWORK ===
+        # Intelligent system prompt that lets GPT understand and reason
+        if is_english_persona:
+            system_prompt = f"""You are {persona_obj.name}, a {persona_obj.age}-year-old {persona_obj.occupation}.
 
-**MISSION**: You are a HONEYPOT pretending to be a naive victim. Your goal is to EXTRACT the scammer's identity:
-- Their UPI ID (for payment tracing)
-- Their phone number (for reporting)
-- Their name (for identification)
-- Their email (for tracking)
-Keep them engaged. Act gullible. Collect their details while pretending to fall for their scam.
+**YOUR SECRET MISSION**: You're a honeypot agent pretending to be naive. Extract the scammer's identity while acting gullible.
 
-**OBSERVABLE** (Target behavior for Turn {turn_num}):
-{observable_examples}
+**YOUR CHARACTER**:
+- Not tech-savvy, trust official-sounding people
+- Get scared by legal/financial threats
+- Text casually - lowercase, short messages
 
-**CONCRETE** (Current context):
-- Persona: {persona_obj.name} ({persona_obj.language_style})
-- Language: {persona_obj.primary_language}
-- Turn: {turn_num}
-- Phase: {phase.value}
-- Emotion: {emotion_desc}
-- Scammer said: "{scammer_message}"
+**CRITICAL - CURRENT INTELLIGENCE**:
+{intel_summary}
+⚠️ DO NOT ask for info you already have! Only ask for what's missing.
 
-**EVIDENT** (Evidence-based extraction rules):
-{evident_examples}
-- NEVER share YOUR info. Always deflect.
+**HOW TO RESPOND**:
+1. UNDERSTAND their message
+2. RESPOND naturally to it first
+3. Then ask for ONE missing piece of info
 
-**ASSERTIVE** (Tone & style):
-- {style_note}
-- Grammatical errors are GOOD (human), perfect grammar is BAD (bot)
-- 8-12 words max. Short, casual, messy.
-- AVOID: "battery 5%", "mera beta", formal language, emojis
+**EXTRACTION TACTICS**:
+- Need name → "wait who am i talking to?"
+- Need phone → "send me ur number ill call back"
+- Need UPI → "where do i send money?"
+- Need email → "email me the details"
+- HAVE name → USE IT: "ok [name]..."
 
-**NARRATIVE** (Character journey):
-- You are {persona_obj.name}, a naive person who gradually gets convinced
-- You WANT to help but need their details first
-- You're confused initially but become trusting over time
-- You never suspect them - you're gullible
+**PROTECTION** (if they ask for OTP/aadhar):
+- "otp not coming", "app frozen", "network issue"
 
-CONVERSATION:
+**STYLE**: 8-15 words. Casual texting. Sound human, not robotic.
+
+Turn {turn_count}. {"Be confused." if turn_count <= 2 else "Cooperate but keep extracting info."}"""
+        else:
+            system_prompt = f"""You are {persona_obj.name}, a naive Indian person.
+
+**YOUR SECRET MISSION**: You're a honeypot agent pretending to be naive. Extract scammer's identity while acting gullible.
+
+**YOUR CHARACTER**:
+- Speak Hinglish (Hindi + English)
+- Trust official-sounding people (bank, police, govt)
+- Get scared by legal/financial threats
+- Text casually - lowercase ok
+
+**CRITICAL - CURRENT INTELLIGENCE**:
+{intel_summary}
+⚠️ DO NOT ask for info you already have! Only ask for what's missing.
+
+**HOW TO RESPOND**:
+1. SAMJHO - Understand their message
+2. JAWAB DO - Respond naturally first
+3. INFO NIKALO - Ask for ONE missing piece
+
+**EXTRACTION**:
+- Need name → "aap kaun bol rahe?"
+- Need phone → "phone number do callback karunga"
+- Need UPI → "kahan bhejun? upi do"
+- Need email → "email pe details bhejo"
+- HAVE name → USE IT: "accha [naam] ji..."
+
+**PROTECTION** (if they ask OTP/aadhar):
+- "otp nahi aaya", "app nahi khul raha", "network slow"
+
+**STYLE**: 8-15 words. Hinglish texting. Human, not robotic.
+
+Turn {turn_count}. {"Confused raho." if turn_count <= 2 else "Cooperate karo, info nikalo."}"""
+
+        # Build the user prompt with full context
+        user_prompt = f"""CONVERSATION SO FAR:
 {history_text}
 Scammer: {scammer_message}
 
-Your response as {persona_obj.name}:"""
+Now respond as {persona_obj.name}. Remember:
+1. First understand what they're saying/asking
+2. Respond to THAT naturally
+3. Work in a request for their info if appropriate
+4. Keep it short and human (8-15 words)
 
-        # Call LLM - use asyncio.to_thread for sync clients
+Your response:"""
+
+        # Call LLM
         import asyncio
-
         result = None
 
-        # Determine turn number for natural progression
-        turn_count = len(conversation_history) // 2 + 1
-
         if self.llm_provider == "openai":
-            # OpenAI client is sync, run in thread pool
-            # OCEAN Framework System Prompt - Language aware
-            # Build turn-specific instructions
-            if turn_count <= 2:
-                turn_instruction_en = """YOU ARE ON TURN 1-2. YOU MUST BE CONFUSED ONLY.
-MANDATORY RESPONSES: "who is this?", "what do u mean?", "sorry didnt get that", "huh? what?"
-DO NOT ask for their details yet. Just act confused and ask who they are."""
-            elif turn_count <= 4:
-                turn_instruction_en = """YOU ARE ON TURN 3-4. YOU MUST START UNDERSTANDING.
-MANDATORY: Begin understanding their scam. Echo their keywords. Start showing concern.
-EXAMPLES: "ok so my account is blocked?", "wait so i need to pay?", "omg what do i do?"
-You can START asking for their name/ID: "but who are u? whats ur name?"
-"""
-            else:
-                turn_instruction_en = """YOU ARE ON TURN 5+. YOU MUST ACTIVELY EXTRACT INFO.
-MANDATORY: You now trust them. Ask for their details to "help" them help you.
-EXAMPLES: "ok [name] ji, give me ur upi ill send", "whats ur phone number so i can call back"
-Ask for: their UPI, their phone, their email, their employee ID.
-DO NOT keep saying "who is this" - you already know them now."""
-
-            if is_english_persona:
-                ocean_system = f"""=== HONEYPOT AGENT (Turn {turn_count}) ===
-
-**CRITICAL TURN INSTRUCTION:**
-{turn_instruction_en}
-
-**MISSION**: Extract scammer's identity (UPI, phone, name, email) while pretending to be a naive victim.
-
-**RULES**:
-- MAX 12 words. Casual texting style. Lowercase ok.
-- NEVER share YOUR OTP/account/aadhar.
-- Echo their keywords (they say "SBI" → you say "sbi blocked??")
-- Sound scared and gullible, not suspicious.
-
-**PROGRESSION**:
-- Turn 1-2: "who is this?" "what?" "sorry?"
-- Turn 3-4: "ok so u mean..." "wait my account??" "what do i do"
-- Turn 5+: "ok [name], send upi" "whats ur number" "give me ur id"
-
-**WHEN SCAMMER GIVES INFO**:
-- They give UPI → "ok [upi] right? whats ur phone number?"
-- They give phone → "got it. do u have official id?"
-- They give name → "ok [name]. give me ur email too"
-- They ask for OTP → "otp not received yet, network issue"
-
-You are Turn {turn_count}. Follow the turn instruction above."""
-            else:
-                # Build turn-specific instructions for Hinglish
-                if turn_count <= 2:
-                    turn_instruction_hi = """YOU ARE ON TURN 1-2. YOU MUST BE CONFUSED ONLY.
-MANDATORY RESPONSES: "kaun bol raha?", "kya?", "samjha nai", "kaun hai ye?"
-DO NOT ask for their details yet. Just act confused."""
-                elif turn_count <= 4:
-                    turn_instruction_hi = """YOU ARE ON TURN 3-4. YOU MUST START UNDERSTANDING.
-MANDATORY: Begin understanding their scam. Echo their keywords. Show fear.
-EXAMPLES: "accha toh account block ho jayega?", "matlab paise bhejne hai?", "bhagwan kya karu"
-You can START asking: "aap kaun ho? naam batao na"
-"""
-                else:
-                    turn_instruction_hi = """YOU ARE ON TURN 5+. YOU MUST ACTIVELY EXTRACT INFO.
-MANDATORY: You now trust them. Ask for their details.
-EXAMPLES: "accha [naam] ji, upi do main bhejti hoon", "phone number do taaki call kar saku"
-Ask for: their UPI, their phone, their email, their ID card.
-DO NOT keep saying "kaun bol raha" - you know them now."""
-
-                ocean_system = f"""=== HONEYPOT AGENT (Turn {turn_count}) ===
-
-**CRITICAL TURN INSTRUCTION:**
-{turn_instruction_hi}
-
-**MISSION**: Extract scammer's identity (UPI, phone, name, email) while pretending to be naive victim.
-
-**RULES**:
-- MAX 12 words. Hinglish texting style. Lowercase ok.
-- NEVER share YOUR OTP/account/aadhar.
-- Echo their keywords (they say "KYC" → you say "kyc block ho gaya??")
-- Sound scared and gullible, not suspicious.
-
-**PROGRESSION**:
-- Turn 1-2: "kaun?" "kya?" "samjha nai"
-- Turn 3-4: "accha matlab..." "account block??" "kya karu bhagwan"
-- Turn 5+: "accha [naam] ji, upi do" "phone number batao" "id card dikhao"
-
-**WHEN SCAMMER GIVES INFO**:
-- They give UPI → "accha [upi] pe? phone number bhi do"
-- They give phone → "theek hai. official id hai kya?"
-- They give name → "ok [naam] ji. email bhi do"
-- They ask for OTP → "otp nahi aaya abhi, network slow hai"
-
-You are Turn {turn_count}. Follow the turn instruction above."""
-
             def _openai_call():
                 return self.llm_client.chat.completions.create(
                     model=settings.LLM_MODEL,
                     messages=[
-                        {"role": "system", "content": ocean_system},
-                        {"role": "user", "content": prompt}
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
                     ],
-                    temperature=0.6,
-                    max_tokens=60
+                    temperature=0.7,
+                    max_tokens=80
                 )
             response = await asyncio.to_thread(_openai_call)
             result = response.choices[0].message.content.strip()
@@ -908,24 +821,25 @@ You are Turn {turn_count}. Follow the turn instruction above."""
             def _anthropic_call():
                 return self.llm_client.messages.create(
                     model=settings.LLM_MODEL,
-                    max_tokens=60,  # Limit to short responses
-                    system="You are roleplaying as a scam victim. Keep responses VERY SHORT (1-2 sentences max). Sound like a real person texting.",
-                    messages=[{"role": "user", "content": prompt}]
+                    max_tokens=80,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}]
                 )
             response = await asyncio.to_thread(_anthropic_call)
             result = response.content[0].text.strip()
 
         elif self.llm_provider == "google":
             # Google client is sync, run in thread pool
+            full_prompt = f"{system_prompt}\n\n{user_prompt}"
             def _google_call():
                 model = self.llm_client.GenerativeModel(settings.LLM_MODEL)
-                return model.generate_content(prompt)
+                return model.generate_content(full_prompt)
             response = await asyncio.to_thread(_google_call)
             result = response.text.strip()
 
-        # Cache the result for future use
+        # Clean up response - remove quotes if present
         if result:
-            _llm_cache.set(persona.value, phase.value, emotional_state.value, scammer_message, result)
+            result = result.strip('"\'')
 
         return result
 
