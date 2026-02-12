@@ -348,6 +348,7 @@ class EntityExtractor:
             'bank', 'account', 'payment', 'verify', 'update', 'click',
             'the', 'and', 'for', 'with', 'from', 'about', 'your', 'our',
             'regarding', 'related', 'concerning', 'matter', 'issue',
+            'calling', 'speaking', 'officer', 'manager', 'executive', 'inspector',
             # Bank names - NOT person names
             'sbi', 'hdfc', 'icici', 'axis', 'kotak', 'pnb', 'bob', 'canara',
             'union', 'idbi', 'idfc', 'yes', 'rbl', 'federal', 'bandhan',
@@ -508,6 +509,12 @@ class IntelligenceAggregator:
             new_items.append("bank_account")
         if set(new_intel.phishing_links) - set(existing_intelligence.phishing_links):
             new_items.append("url")
+        if set(new_intel.suspicious_keywords) - set(existing_intelligence.suspicious_keywords):
+            new_items.append("keywords")
+        if set(new_intel.scammer_names) - set(existing_intelligence.scammer_names):
+            new_items.append("name")
+        if set(new_intel.email_addresses) - set(existing_intelligence.email_addresses):
+            new_items.append("email")
 
         return new_intel, new_items
 
