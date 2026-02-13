@@ -421,6 +421,82 @@ class ResponseGenerator:
                         "QR code scan nahi ho raha. Number do phone pe batati hoon."
                     ]
                 }
+            },
+
+            # NEUTRAL_CITIZEN (Pranav - 27yr Marketing Executive, English speaker)
+            PersonaType.NEUTRAL_CITIZEN: {
+                ConversationPhase.ENGAGE: {
+                    EmotionalState.CONFUSED: [
+                        "Sorry, I didn't quite understand. {echo}? Can you explain again?",
+                        "Wait, what exactly do you mean by {echo}?",
+                        "I'm not sure I follow. Could you clarify?",
+                        "Hmm, this sounds unusual. Can you tell me more?"
+                    ],
+                    EmotionalState.WORRIED: [
+                        "Oh no, really? {echo}? What should I do?",
+                        "That's concerning. How did this happen?",
+                        "This sounds serious. What are my options?",
+                        "I'm a bit worried now. Please explain the situation."
+                    ],
+                    EmotionalState.TRUSTING: [
+                        "Okay, I understand. What do you need from me?",
+                        "Alright, I'll cooperate. Tell me what to do.",
+                        "Got it. I'm listening, please continue."
+                    ],
+                    EmotionalState.INITIAL: [
+                        "Hello? Who's calling?",
+                        "Yes, may I know who this is?",
+                        "Hi, how can I help you?"
+                    ]
+                },
+                ConversationPhase.PROBE: {
+                    EmotionalState.CONFUSED: [
+                        "Before we proceed, could you share your name and employee ID?",
+                        "Can you give me a reference number for this case?",
+                        "What's the official helpline number I can verify this on?",
+                        "Which department are you from? I'd like to confirm."
+                    ],
+                    EmotionalState.WORRIED: [
+                        "This is stressful. Can you give me your supervisor's contact?",
+                        "I need to verify this. What's the official website?",
+                        "Please share your contact details so I can call back."
+                    ],
+                    EmotionalState.TRUSTING: [
+                        "Okay, I trust you. Just share your name and ID for my records.",
+                        "Sure, but first give me your contact number.",
+                        "Alright, what's your official email address?"
+                    ]
+                },
+                ConversationPhase.EXTRACT: {
+                    EmotionalState.TRUSTING: [
+                        "Okay, how much do I need to pay? What's your UPI ID?",
+                        "I can transfer now. Share the account details.",
+                        "Should I use Google Pay or PhonePe? Give me the UPI.",
+                        "Alright, I'm ready. Share the payment link or UPI."
+                    ],
+                    EmotionalState.COMPLIANT: [
+                        "Done, I'm sending it now. Confirm the UPI ID please.",
+                        "Transferring now. Account number and IFSC please.",
+                        "Ready to pay. Just confirm the amount and UPI."
+                    ],
+                    EmotionalState.HESITANT: [
+                        "The amount seems high. Is there any other option?",
+                        "Let me check with someone first. Can you wait?",
+                        "I'll need an official receipt for this payment."
+                    ]
+                },
+                ConversationPhase.STALL: {
+                    EmotionalState.CONFUSED: [
+                        "Hold on, my app is loading slowly. Give me a minute.",
+                        "The OTP hasn't arrived yet. Can you resend?",
+                        "My internet is slow right now. Let me try again."
+                    ],
+                    EmotionalState.WORRIED: [
+                        "I need to step out for a meeting. Can you call back in 30 mins?",
+                        "Let me discuss with my family first. Share your WhatsApp.",
+                        "I'm in office right now. Send me the details on email."
+                    ]
+                }
             }
         }
 
@@ -464,9 +540,169 @@ class ResponseGenerator:
                 "Haan bolo, kaun hai?",
                 "Ji? Kaun?",
                 "Haan ji, bolo?"
+            ],
+            PersonaType.NEUTRAL_CITIZEN: [
+                "Hello? Who's calling?",
+                "Yes? May I know who this is?",
+                "Hi, who's this?"
             ]
         }
-        responses = greeting_responses.get(persona, greeting_responses[PersonaType.RAMU_UNCLE])
+        responses = greeting_responses.get(persona, greeting_responses[PersonaType.NEUTRAL_CITIZEN])
+        return random.choice(responses)
+
+    async def _is_out_of_context_llm(self, message: str, conversation_history: List[Dict[str, Any]], scam_confidence: float = 0.0) -> bool:
+        """
+        Hybrid detection for out-of-context or bot-probing questions.
+        Uses fast keyword matching for bot-probing (works on ALL turns),
+        then LLM for nuanced cases (after turn 2).
+
+        Args:
+            message: The incoming message
+            conversation_history: Previous messages
+            scam_confidence: Current scam detection confidence (0-1)
+        """
+        msg_lower = message.lower().strip()
+
+        # FAST KEYWORD CHECK - Works on ALL turns including turn 1
+        # Critical for catching "are you a bot?" on first message
+        bot_probe_keywords = [
+            'are you a bot', 'are you real', 'are you human', 'are you ai',
+            'are you a machine', 'are you artificial', 'who created you',
+            'are you a robot', 'is this automated', 'is this a bot',
+            'am i talking to a bot', 'am i talking to a human',
+            'are you a person', 'is this real', 'are you fake'
+        ]
+        if any(kw in msg_lower for kw in bot_probe_keywords):
+            logger.info(f"Bot-probing detected (keyword): {message[:50]}")
+            return True
+
+        # LATENCY OPTIMIZATION: Skip LLM call if scam confidence is high
+        # High confidence (>0.7) means it's clearly a scam conversation, not small talk
+        # This saves ~300-500ms per turn
+        if scam_confidence > 0.7:
+            logger.debug(f"Skipping OOC LLM check - high scam confidence ({scam_confidence:.2f})")
+            return False
+
+        # Skip LLM-based check for very short conversations (first 2 turns)
+        # Keyword check above handles critical cases
+        if len(conversation_history) < 2:
+            return False
+
+        # Skip for very short messages (likely just acknowledgments)
+        if len(message.strip()) < 10:
+            return False
+
+        if not self.llm_client:
+            return False
+
+        try:
+            classification_prompt = f"""Classify this message in a scam conversation context.
+
+Message: "{message}"
+
+Is this message:
+A) A normal continuation of a financial/scam conversation (account issues, payments, jobs, prizes, etc.)
+B) A bot-probing question ("are you a bot?", "are you real?", "are you AI?", "are you human?")
+C) Completely irrelevant small talk ("what did you eat?", "how's the weather?", "what's your favorite color?")
+
+Reply with ONLY the letter: A, B, or C"""
+
+            if self.llm_provider == "openai":
+                import asyncio
+                def _openai_call():
+                    return self.llm_client.chat.completions.create(
+                        model=settings.LLM_MODEL,
+                        messages=[
+                            {"role": "system", "content": "You are a message classifier. Reply with only A, B, or C."},
+                            {"role": "user", "content": classification_prompt}
+                        ],
+                        temperature=0.0,
+                        max_tokens=5
+                    )
+                response = await asyncio.to_thread(_openai_call)
+                result = response.choices[0].message.content.strip().upper()
+
+                # Only consider B (bot-probing) or C (irrelevant) as out-of-context
+                if result in ['B', 'C']:
+                    logger.info(f"LLM classified as out-of-context (type={result}): {message[:50]}")
+                    return True
+                return False
+
+        except Exception as e:
+            logger.warning(f"LLM out-of-context classification failed: {e}")
+            return False
+
+        return False
+
+    async def _get_out_of_context_response(self, persona: PersonaType, message_type: str = "irrelevant") -> str:
+        """Generate persona-appropriate response for out-of-context questions"""
+        out_of_context_templates = {
+            PersonaType.RAMU_UNCLE: [
+                "Arey, yeh kya pooch rahe ho? Pehle bank wala issue batao.",
+                "Huh? Iska kya matlab? Baat relevant karo na.",
+                "Beta, time waste mat kar. Mujhe samjhao kya kar raha tha tu."
+            ],
+            PersonaType.ANANYA_STUDENT: [
+                "um why are u asking me that?? 😅 can we focus pls",
+                "huh? thats kinda random lol... anyway continue?",
+                "ok but like... thats weird to ask rn?? whats the main issue"
+            ],
+            PersonaType.AARTI_HOMEMAKER: [
+                "Arey, yeh kya pooch rahe ho? Issue batao pehle.",
+                "Ji, yeh sab baad mein. Mera paisa ka mamla solve karo.",
+                "Huh? Samajh nahi aaya. Baat relevant karo."
+            ],
+            PersonaType.VIKRAM_IT: [
+                "That's not relevant right now. What's the main issue?",
+                "Why are you asking that? Let's focus on the problem.",
+                "I don't understand the question. Can we get back to the issue?"
+            ],
+            PersonaType.SUNITA_SHOP: [
+                "Arey, yeh kya baat kar rahe ho? Problem batao.",
+                "Huh? Iska matlab kya? Pehle issue solve kar.",
+                "Beta, relevant baat karo. Mera time barbaad mat kar."
+            ],
+            PersonaType.NEUTRAL_CITIZEN: [
+                "Sorry, I don't understand. What's the main issue?",
+                "That's not relevant. Can we get back to what you were saying?",
+                "I'm confused. What exactly do you need from me?"
+            ]
+        }
+
+        # Try LLM-generated response first
+        if self.llm_client:
+            try:
+                persona_obj = self.persona_engine.get_persona(persona)
+
+                if self.llm_provider == "openai":
+                    lang = "English ONLY" if persona_obj.primary_language == "English" else "Hinglish/Hindi ONLY"
+                    system_msg = f"""You are {persona_obj.name}, a {persona_obj.age}-year-old {persona_obj.occupation}.
+Someone asked you an irrelevant question during an important call. Respond with mild confusion and redirect.
+- Show you don't understand why they're asking
+- Redirect to the main topic
+- Respond in {lang}
+- Keep it short (max 12 words)"""
+
+                    import asyncio
+                    def _openai_call():
+                        return self.llm_client.chat.completions.create(
+                            model=settings.LLM_MODEL,
+                            messages=[
+                                {"role": "system", "content": system_msg},
+                                {"role": "user", "content": "Generate a confused redirect response."}
+                            ],
+                            temperature=0.6,
+                            max_tokens=30
+                        )
+                    response = await asyncio.to_thread(_openai_call)
+                    llm_response = response.choices[0].message.content.strip()
+                    if llm_response:
+                        return llm_response
+            except Exception as e:
+                logger.warning(f"LLM out-of-context response failed: {e}")
+
+        # Fallback to templates
+        responses = out_of_context_templates.get(persona, out_of_context_templates[PersonaType.RAMU_UNCLE])
         return random.choice(responses)
 
     # def _is_out_of_context(self, message: str) -> bool:
@@ -607,11 +843,14 @@ class ResponseGenerator:
         if self._is_simple_greeting(scammer_message) and len(conversation_history) <= 1:
             return self._get_greeting_response(state.persona)
 
-        # # Check for out-of-context questions - respond with confusion
-        # is_out_of_context = self._is_out_of_context(scammer_message)
-        # if is_out_of_context:
-        #     logger.info(f"OUT-OF-CONTEXT question detected: {scammer_message}")
-        #     return await self._get_out_of_context_response(state.persona)
+        # Check for out-of-context questions using hybrid detection
+        # Pass scam_confidence to skip LLM call when confidence is high (latency optimization)
+        is_out_of_context = await self._is_out_of_context_llm(
+            scammer_message, conversation_history, scam_confidence=state.confidence_score
+        )
+        if is_out_of_context:
+            logger.info(f"OUT-OF-CONTEXT (LLM) detected: {scammer_message}")
+            return await self._get_out_of_context_response(state.persona)
 
         # Get current persona and phase
         persona = state.persona
@@ -624,15 +863,19 @@ class ResponseGenerator:
             emotional_state, persona, tactics, state.turn_count
         )
 
-        # Select probing technique
+        # Select probing technique (use session's used_techniques to avoid repetition)
         technique = self.strategy_selector.select_technique(
             phase=phase,
             persona_type=persona,
-            already_used=[],  # Could track in session
+            already_used=state.used_techniques if hasattr(state, 'used_techniques') else [],
             intelligence_needed=self.strategy_selector.determine_intelligence_gaps(
                 state.intelligence.model_dump() if state.intelligence else {}
             )
         )
+
+        # Track the technique used (will be persisted by orchestrator)
+        if hasattr(state, 'used_techniques') and technique:
+            state.used_techniques.append(technique.name)
 
         # Try LLM generation first
         if self.llm_client:
@@ -644,7 +887,8 @@ class ResponseGenerator:
                     technique=technique,
                     scammer_message=scammer_message,
                     conversation_history=conversation_history,
-                    extracted_intel=state.intelligence
+                    extracted_intel=state.intelligence,
+                    scam_type=state.scam_type
                 )
                 if response:
                     return response
@@ -667,7 +911,8 @@ class ResponseGenerator:
             technique: ProbingTechnique,
             scammer_message: str,
             conversation_history: List[Dict[str, Any]],
-            extracted_intel: 'ExtractedIntelligence' = None
+            extracted_intel: 'ExtractedIntelligence' = None,
+            scam_type: ScamType = None
     ) -> Optional[str]:
         """Generate response using LLM with intelligent context understanding"""
 
@@ -686,6 +931,23 @@ class ResponseGenerator:
             history_text += f"{sender}: {msg.get('text', '')}\n"
 
         turn_count = len(conversation_history) // 2 + 1
+
+        # Build scam type context for appropriate responses
+        scam_context = ""
+        if scam_type and scam_type != ScamType.UNKNOWN:
+            scam_context_map = {
+                ScamType.IMPERSONATION: "SCAM TYPE: Authority Impersonation (Police/CBI/Court). Be SCARED and WORRIED. Ask for proof, case number, officer details. DO NOT ask for UPI - that makes no sense here!",
+                ScamType.BANKING_FRAUD: "SCAM TYPE: Banking fraud. Be worried about your money. Ask for bank details, reference numbers.",
+                ScamType.UPI_FRAUD: "SCAM TYPE: UPI fraud. Be confused about payment. Ask for UPI details, phone numbers.",
+                ScamType.KYC_SCAM: "SCAM TYPE: KYC scam. Be worried about account block. Ask for helpline, reference number.",
+                ScamType.JOB_SCAM: "SCAM TYPE: Job scam. Be excited but cautious. Ask for company details, contact.",
+                ScamType.LOTTERY_SCAM: "SCAM TYPE: Lottery/Prize scam. Be excited but skeptical. Ask how you won, their details.",
+                ScamType.TECH_SUPPORT: "SCAM TYPE: Tech support scam. Be confused about the problem. Ask what's wrong, their ID.",
+                ScamType.INVESTMENT_FRAUD: "SCAM TYPE: Investment fraud. Be interested but ask for proof, registration.",
+                ScamType.DELIVERY_SCAM: "SCAM TYPE: Delivery scam. Be confused about package. Ask for tracking, sender details.",
+            }
+            scam_context = scam_context_map.get(scam_type, f"SCAM TYPE: {scam_type.value}. Respond appropriately.")
+            scam_context = f"\n{scam_context}\n"
 
         # Build intelligence summary - what we know and what we need
         intel_summary = ""
@@ -742,7 +1004,7 @@ Your goal: Extract info while sounding scared/confused. Use casual texting (lowe
                 character_desc = f"You are {persona_obj.name}. Respond naturally based on your character, not mechanical rules."
 
             system_prompt = f"""{character_desc}
-
+{scam_context}
 CURRENT CONTEXT:
 {intel_summary}
 
@@ -768,7 +1030,7 @@ Tumhara goal: Unki info nikalo while busy dikhte hue. 8-15 words."""
                 character_desc = f"Tum {persona_obj.name} ho. Apne character ke hisaab se naturally respond karo."
 
             system_prompt = f"""{character_desc}
-
+{scam_context}
 ABHI KA CONTEXT:
 {intel_summary}
 

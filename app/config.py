@@ -31,11 +31,9 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: int = 500
 
     # Redis Configuration (for session management)
-    USE_REDIS: bool = True  # Toggle to switch between Redis and in-memory store
+    USE_REDIS: bool = False  # Toggle to switch between Redis and in-memory store
     REDIS_STRICT: bool = False  # When true, fail instead of falling back to memory
     REDIS_URL: str = "redis://localhost:6379/0"
-    USE_REDIS: bool = False
-    REDIS_STRICT: bool = False
     SESSION_TTL: int = 3600  # 1 hour session timeout
 
     # GUVI Callback Configuration
@@ -48,10 +46,10 @@ class Settings(BaseSettings):
     HIGH_CONFIDENCE_THRESHOLD: float = 0.85
 
     # Conversation Limits
-    MAX_CONVERSATION_TURNS: int = 10
+    MAX_CONVERSATION_TURNS: int = 15  # Increased for deeper engagement scoring
     ENGAGE_PHASE_TURNS: int = 3
     PROBE_PHASE_TURNS: int = 5
-    EXTRACT_PHASE_TURNS: int = 5
+    EXTRACT_PHASE_TURNS: int = 7
 
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100

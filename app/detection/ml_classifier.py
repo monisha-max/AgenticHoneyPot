@@ -79,12 +79,14 @@ class ScamMLClassifier:
 
     def _find_dataset(self) -> str:
         """Find the dataset file"""
+        # Get the directory where this file is located
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         possible_paths = [
-            "/Users/apple/Desktop/guvi/whatsapp_scam_dataset.csv",
+            os.path.join(base_dir, "whatsapp_scam_dataset.csv"),
+            os.path.join(base_dir, "..", "whatsapp_scam_dataset.csv"),
+            os.path.join(base_dir, "data", "whatsapp_scam_dataset.csv"),
             "whatsapp_scam_dataset.csv",
             "../whatsapp_scam_dataset.csv",
-            "../../whatsapp_scam_dataset.csv",
-            "../../../whatsapp_scam_dataset.csv",
         ]
 
         for path in possible_paths:
@@ -466,8 +468,11 @@ class ScamSimilarityMatcher:
         self._load_dataset()
 
     def _find_dataset(self) -> str:
+        # Get the directory where this file is located
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         possible_paths = [
-            "/Users/apple/Desktop/guvi/whatsapp_scam_dataset.csv",
+            os.path.join(base_dir, "whatsapp_scam_dataset.csv"),
+            os.path.join(base_dir, "..", "whatsapp_scam_dataset.csv"),
             "whatsapp_scam_dataset.csv",
         ]
         for path in possible_paths:

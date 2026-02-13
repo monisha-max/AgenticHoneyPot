@@ -126,12 +126,13 @@ Analyze for these scam indicators:
 5. Too-good-to-be-true offers (lottery, prizes)
 6. Suspicious payment requests
 7. Phishing attempts
+8. Authority impersonation (fake police, CBI, customs, "digital arrest", "do not tell anyone", court orders)
 
 Respond in JSON format:
 {{
     "is_scam": true/false,
     "confidence": 0.0-1.0,
-    "scam_type": "BANKING_FRAUD|UPI_FRAUD|KYC_SCAM|JOB_SCAM|LOTTERY_SCAM|TECH_SUPPORT|INVESTMENT_FRAUD|BILL_PAYMENT_SCAM|DELIVERY_SCAM|UNKNOWN",
+    "scam_type": "BANKING_FRAUD|UPI_FRAUD|KYC_SCAM|JOB_SCAM|LOTTERY_SCAM|TECH_SUPPORT|INVESTMENT_FRAUD|BILL_PAYMENT_SCAM|DELIVERY_SCAM|IMPERSONATION|UNKNOWN",
     "intent": "brief description of sender's intent",
     "tactics": ["list", "of", "tactics", "used"],
     "reasoning": "brief explanation"

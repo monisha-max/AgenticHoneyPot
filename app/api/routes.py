@@ -125,6 +125,45 @@ async def process_message_flex(
 # MAIN HONEYPOT ENDPOINT
 # ============================================================================
 
+def _parse_timestamp(ts_value: Any) -> datetime:
+    """
+    Parse timestamp from various formats:
+    - ISO string: "2026-01-21T10:15:30Z"
+    - Epoch milliseconds: 1770005528731
+    - Epoch seconds: 1770005528
+    - None/invalid: returns current time
+    """
+    if ts_value is None:
+        return datetime.utcnow()
+
+    if isinstance(ts_value, (int, float)):
+        # Detect if it's milliseconds (13+ digits) or seconds (10 digits)
+        if ts_value > 1e12:  # Milliseconds
+            return datetime.utcfromtimestamp(ts_value / 1000)
+        else:  # Seconds
+            return datetime.utcfromtimestamp(ts_value)
+
+    if isinstance(ts_value, str):
+        try:
+            # Handle ISO format with Z suffix
+            return datetime.fromisoformat(ts_value.replace('Z', '+00:00'))
+        except ValueError:
+            pass
+
+        # Try parsing as numeric string
+        try:
+            numeric_ts = float(ts_value)
+            if numeric_ts > 1e12:
+                return datetime.utcfromtimestamp(numeric_ts / 1000)
+            else:
+                return datetime.utcfromtimestamp(numeric_ts)
+        except ValueError:
+            pass
+
+    # Fallback to current time
+    return datetime.utcnow()
+
+
 def _parse_flexible_request(body: Dict[str, Any]) -> HoneypotRequest:
     """
     Parse flexible request formats from GUVI or other sources
@@ -167,7 +206,7 @@ def _parse_flexible_request(body: Dict[str, Any]) -> HoneypotRequest:
     message = Message(
         sender=SenderType(message_data.get('sender', 'scammer')),
         text=str(message_data.get('text', 'Hello')),
-        timestamp=datetime.fromisoformat(message_data['timestamp'].replace('Z', '+00:00')) if isinstance(message_data.get('timestamp'), str) else datetime.utcnow()
+        timestamp=_parse_timestamp(message_data.get('timestamp'))
     )
 
     # Convert conversation history dicts to Message objects
@@ -178,7 +217,7 @@ def _parse_flexible_request(body: Dict[str, Any]) -> HoneypotRequest:
                 history.append(Message(
                     sender=SenderType(msg.get('sender', 'scammer')),
                     text=str(msg.get('text', '')),
-                    timestamp=datetime.utcnow()
+                    timestamp=_parse_timestamp(msg.get('timestamp'))
                 ))
             except Exception:
                 # Skip invalid messages

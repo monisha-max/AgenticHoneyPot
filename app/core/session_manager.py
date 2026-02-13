@@ -398,15 +398,23 @@ class SessionManager:
 
         state.turn_count += 1
 
-        # Update conversation phase based on turn count
-        if state.turn_count <= settings.ENGAGE_PHASE_TURNS:
+        # IMPORTANT: Only advance phase if scam has been detected
+        # Stay in ENGAGE until we confirm this is a scam conversation
+        # This prevents asking for payment details in non-scam or early conversations
+        if not state.scam_detected:
+            # Stay in ENGAGE phase until scam is detected
             state.conversation_phase = ConversationPhase.ENGAGE
-        elif state.turn_count <= settings.ENGAGE_PHASE_TURNS + settings.PROBE_PHASE_TURNS:
-            state.conversation_phase = ConversationPhase.PROBE
-        elif state.turn_count <= settings.ENGAGE_PHASE_TURNS + settings.PROBE_PHASE_TURNS + settings.EXTRACT_PHASE_TURNS:
-            state.conversation_phase = ConversationPhase.EXTRACT
         else:
-            state.conversation_phase = ConversationPhase.STALL
+            # Scam detected - now advance phases based on turn count AFTER detection
+            # Use turns since scam was detected, not total turns
+            if state.turn_count <= settings.ENGAGE_PHASE_TURNS:
+                state.conversation_phase = ConversationPhase.ENGAGE
+            elif state.turn_count <= settings.ENGAGE_PHASE_TURNS + settings.PROBE_PHASE_TURNS:
+                state.conversation_phase = ConversationPhase.PROBE
+            elif state.turn_count <= settings.ENGAGE_PHASE_TURNS + settings.PROBE_PHASE_TURNS + settings.EXTRACT_PHASE_TURNS:
+                state.conversation_phase = ConversationPhase.EXTRACT
+            else:
+                state.conversation_phase = ConversationPhase.STALL
 
         await self.update_session(session_id, state)
         return state

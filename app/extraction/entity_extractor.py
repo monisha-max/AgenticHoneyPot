@@ -349,6 +349,13 @@ class EntityExtractor:
             'the', 'and', 'for', 'with', 'from', 'about', 'your', 'our',
             'regarding', 'related', 'concerning', 'matter', 'issue',
             'calling', 'speaking', 'officer', 'manager', 'executive', 'inspector',
+            # Titles and designations - NOT person names
+            'sub', 'senior', 'junior', 'deputy', 'chief', 'assistant',
+            'constable', 'sergeant', 'superintendent', 'commissioner',
+            'director', 'chairman', 'president', 'secretary', 'advocate',
+            'doctor', 'professor', 'incharge', 'supervisor', 'agent',
+            'colonel', 'major', 'captain', 'general', 'lieutenant',
+            'head', 'lead', 'principal', 'associate', 'additional',
             # Bank names - NOT person names
             'sbi', 'hdfc', 'icici', 'axis', 'kotak', 'pnb', 'bob', 'canara',
             'union', 'idbi', 'idfc', 'yes', 'rbl', 'federal', 'bandhan',

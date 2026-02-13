@@ -284,8 +284,11 @@ class URLAnalyzer:
                 result["error"] = "Empty or failed response"
                 return result
 
-            # Parse HTML
-            soup = BeautifulSoup(html_content, 'lxml')
+            # Parse HTML (with lxml fallback to html.parser)
+            try:
+                soup = BeautifulSoup(html_content, 'lxml')
+            except Exception:
+                soup = BeautifulSoup(html_content, 'html.parser')
 
             # Get title
             title_tag = soup.find('title')

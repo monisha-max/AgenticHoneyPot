@@ -150,6 +150,8 @@ class ConversationOrchestrator:
         try:
             # Step 7: Generate response using full pipeline
             response = await self._generate_response(state, message, conversation_history)
+            # Persist state updates (e.g., used_techniques) made during response generation
+            await self.session_manager.update_session(state.session_id, state)
         except Exception as e:
             logger.error(f"Response generation failed, using fallback: {e}")
             response = self._get_fallback_response(state, message.text)
@@ -305,12 +307,19 @@ class ConversationOrchestrator:
                     state.session_id,
                     f"Scammer Intent: {detection_result.intent}"
                 )
-            
+
             if detection_result.reasoning:
                 await self.session_manager.add_agent_note(
                     state.session_id,
                     f"Analysis: {detection_result.reasoning}"
                 )
+
+        # CRITICAL: Merge detected keywords into intelligence for callback payload
+        if detection_result.keywords_found:
+            existing_keywords = set(state.intelligence.suspicious_keywords)
+            existing_keywords.update(detection_result.keywords_found)
+            state.intelligence.suspicious_keywords = list(existing_keywords)[:20]  # Limit to 20
+            await self.session_manager.update_intelligence(state.session_id, state.intelligence)
 
         return state
 
@@ -457,9 +466,13 @@ class ConversationOrchestrator:
             history: List[Message]
     ) -> str:
         """Generate response using full pipeline"""
-        # Convert history to dict format
-        history_dicts = []
-        if history:
+        # USE SESSION'S STORED HISTORY (has both scammer + agent messages)
+        # This is critical because GUVI may send empty conversationHistory
+        # and rely on sessionId for state. The session already tracks both sides.
+        history_dicts = state.conversation_history[-20:] if state.conversation_history else []
+
+        # Fallback to request history if session history is empty (first message)
+        if not history_dicts and history:
             for msg in history:
                 history_dicts.append({
                     "sender": msg.sender.value,

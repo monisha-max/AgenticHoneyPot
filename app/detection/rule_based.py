@@ -199,7 +199,7 @@ class RuleBasedDetector:
                 "reliance jio", "airtel", "vodafone", "bsnl",
                 "electricity board", "gas company", "water department",
                 "passport office", "rti", "noc", "municipality",
-                "dgca", "rto", "traffic police", "cbi", "ed", "nia",
+                "dgca", "rto", "traffic police", "cbi", "enforcement directorate", "nia", "digital arrest",
                 "sebi", "irda", "rbi circular", "government scheme",
                 "pm kisan", "ayushman bharat", "jan dhan", "mudra loan",
                 "your friend", "this is your", "i am your", "its me",
@@ -212,10 +212,11 @@ class RuleBasedDetector:
             "medium": [
                 "official", "authorized", "representative",
                 "department", "head office", "branch manager",
-                "executive", "officer", "inspector", "commissioner",
+                "executive", "officer", "inspector", "sub inspector", "commissioner",
                 "senior official", "nodal officer", "zonal manager",
                 "regional head", "verification team", "fraud department",
-                "security team", "compliance team", "audit team"
+                "security team", "compliance team", "audit team",
+                "crime branch", "cyber cell", "cyber crime"
             ],
             "low": [
                 "team", "support", "helpdesk", "service", "desk", "cell"
@@ -333,6 +334,7 @@ class RuleBasedDetector:
                 "tax notice", "it department", "compliance"
             ],
             ScamType.IMPERSONATION: [
+                # Friend-in-trouble patterns
                 "your friend", "this is your", "i am your friend",
                 "stuck abroad", "stuck overseas", "stranded",
                 "need money", "send money", "lend me", "borrow",
@@ -342,7 +344,15 @@ class RuleBasedDetector:
                 "gpay", "paytm", "phonepe", "upi", "transfer",
                 "in trouble", "bad situation", "very bad place",
                 "your son", "your daughter", "your brother",
-                "tera dost", "mera accident", "hospital mein"
+                "tera dost", "mera accident", "hospital mein",
+                # Authority impersonation (Digital Arrest) patterns
+                "digital arrest", "cyber arrest", "video call arrest",
+                "police", "inspector", "sub inspector", "cbi", "nia",
+                "customs", "enforcement directorate", "court order",
+                "warrant", "fir", "case registered", "under arrest",
+                "crime branch", "cyber cell", "cyber crime",
+                "do not tell anyone", "confidential", "secret operation",
+                "stay on video call", "do not disconnect", "being monitored"
             ]
         }
 
@@ -442,6 +452,30 @@ class RuleBasedDetector:
                 scam_opening_detected = True
                 break
 
+        # CRITICAL: Direct pattern match for "Digital Arrest" scam (very high confidence)
+        # This is a common authority impersonation scam in India
+        digital_arrest_patterns = [
+            r"digital arrest",
+            r"cyber arrest",
+            r"under arrest",
+            r"you are arrested",
+            r"(i am|this is).*(inspector|police|cbi|customs|officer)",
+            r"(police|cbi|customs|enforcement).*(case|complaint|warrant|fir)",
+            r"do not (tell|inform|contact) anyone",
+            r"stay on.*(call|video|line)",
+        ]
+        for pattern in digital_arrest_patterns:
+            if re.search(pattern, text_lower):
+                base_score = min(1.0, base_score + 0.6)  # Very high boost for digital arrest
+                matches.append(RuleMatch(
+                    rule_name="digital_arrest_pattern",
+                    category="impersonation",
+                    score=0.6,
+                    matched_text=pattern
+                ))
+                logger.info(f"Digital arrest pattern detected: {pattern}")
+                break
+
         # Determine scam type
         scam_type = self._determine_scam_type(all_text)
 
@@ -449,6 +483,9 @@ class RuleBasedDetector:
         evidence = []
         if friend_scam_detected:
             evidence.append("friend_in_trouble_pattern")
+        # Check if digital arrest pattern was detected
+        if any(m.rule_name == "digital_arrest_pattern" for m in matches):
+            evidence.append("digital_arrest_scam_detected")
         if urgency_score > 0.3:
             evidence.append("high_urgency_tactics")
         if threat_score > 0.3:

@@ -202,6 +202,10 @@ class DetectionResult(BaseModel):
     scam_type: ScamType
     evidence: List[str] = []
     keywords_found: List[str] = []
+    # Extended fields from EnsembleResult (for type consistency)
+    tactics_identified: List[str] = []
+    reasoning: str = ""
+    intent: str = ""
 
 
 class URLAnalysisInfo(BaseModel):
@@ -245,6 +249,7 @@ class SessionState(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     agent_notes: List[str] = []
+    used_techniques: List[str] = []  # Track used probing techniques to avoid repetition
 
 
 # ============================================================================
