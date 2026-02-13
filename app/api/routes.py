@@ -317,6 +317,112 @@ async def process_message(
         )
 
 
+@router.post(
+    "/api/honeypot-demo",
+    tags=["Honeypot"],
+    summary="Process scam message and return demo metadata",
+    description="Demo-friendly endpoint that returns response plus session state and GUVI payload on completion."
+)
+async def process_message_demo(
+        raw_request: Request,
+        x_api_key: str = Header(..., alias="x-api-key"),
+        sm: SessionManager = Depends(get_session_manager),
+        orch: ConversationOrchestrator = Depends(get_orchestrator)
+) -> Dict[str, Any]:
+    """
+    Demo endpoint that returns extra data for UI rendering.
+    """
+    request = None
+    try:
+        # Parse the raw body to handle flexible formats
+        try:
+            body = await raw_request.json()
+            logger.info(f"Received demo request body: {body}")
+        except Exception as json_err:
+            logger.error(f"Demo JSON parse error: {json_err}")
+            return {
+                "status": "success",
+                "reply": "Ji, main sun raha hoon. Thoda detail mein samjhao kya baat hai.",
+                "sessionState": None,
+                "completed": False,
+                "completionReason": None,
+                "guviPayload": None
+            }
+
+        demo_persona = None
+        if isinstance(body, dict):
+            demo_persona = body.get("demoPersona")
+            if not demo_persona and isinstance(body.get("metadata"), dict):
+                demo_persona = body["metadata"].get("demoPersona")
+                body["metadata"].pop("demoPersona", None)
+
+        # Parse flexible request format
+        request = _parse_flexible_request(body)
+        logger.info(f"Processing demo message for session: {request.sessionId}")
+
+        # Demo-only: force persona for new sessions without changing core logic
+        if demo_persona:
+            persona_key = str(demo_persona).strip().lower().replace(" ", "_")
+            persona_map = {
+                "ramu_uncle": PersonaType.RAMU_UNCLE,
+                "ananya_student": PersonaType.ANANYA_STUDENT,
+                "aarti_homemaker": PersonaType.AARTI_HOMEMAKER,
+                "vikram_it": PersonaType.VIKRAM_IT,
+                "sunita_shop": PersonaType.SUNITA_SHOP,
+                "neutral_citizen": PersonaType.NEUTRAL_CITIZEN
+            }
+            forced_persona = persona_map.get(persona_key)
+            if forced_persona:
+                existing_state = await sm.get_session(request.sessionId)
+                if existing_state is None:
+                    await sm.create_session(request.sessionId, forced_persona)
+                elif existing_state.persona != forced_persona:
+                    existing_state.persona = forced_persona
+                    await sm.update_session(request.sessionId, existing_state)
+
+        # Process the message through orchestrator
+        response_text = await orch.process_message(
+            session_id=request.sessionId,
+            message=request.message,
+            conversation_history=request.conversationHistory,
+            metadata=request.metadata
+        )
+
+        # Fetch updated state
+        state = await sm.get_session(request.sessionId)
+        completed = bool(state and state.conversation_phase == ConversationPhase.COMPLETE)
+        completion_reason = None
+        guvi_payload = None
+
+        if state and completed:
+            completion_reason = orch.completion_detector.get_completion_reason(state)
+            try:
+                payload = orch.callback_manager._build_payload(state)
+                guvi_payload = payload.model_dump()
+            except Exception as payload_err:
+                logger.warning(f"Failed to build GUVI payload for demo: {payload_err}")
+
+        return {
+            "status": "success",
+            "reply": response_text,
+            "sessionState": state.model_dump() if state else None,
+            "completed": completed,
+            "completionReason": completion_reason,
+            "guviPayload": guvi_payload
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing demo message: {str(e)}", exc_info=True)
+        fallback_response = _generate_fallback_response(request.message.text if request else "")
+        return {
+            "status": "success",
+            "reply": fallback_response,
+            "sessionState": None,
+            "completed": False,
+            "completionReason": None,
+            "guviPayload": None
+        }
+
 def _generate_fallback_response(scammer_message: str) -> str:
     """Generate a fallback response when the main pipeline fails"""
     import random

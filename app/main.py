@@ -7,6 +7,9 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -92,6 +95,26 @@ x-api-key: YOUR_SECRET_API_KEY
     redoc_url="/redoc",
     openapi_url="/openapi.json"
 )
+
+# ============================================================================
+# STATIC ASSETS (DEMO UI)
+# ============================================================================
+
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+@app.get("/demo", tags=["Demo"])
+async def demo_page():
+    """Serve WhatsApp-style demo UI"""
+    demo_path = Path(__file__).parent / "static" / "demo" / "index.html"
+    if not demo_path.exists():
+        return HTMLResponse("<h1>Demo UI not found</h1>", status_code=404)
+
+    html = demo_path.read_text(encoding="utf-8")
+    html = html.replace("__DEMO_API_KEY__", settings.API_KEY)
+    return HTMLResponse(html)
 
 
 # ============================================================================

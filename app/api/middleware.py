@@ -38,7 +38,7 @@ async def verify_api_key(request: Request) -> bool:
         HTTPException: If API key is missing or invalid
     """
     # Skip authentication for health check and docs
-    if request.url.path in ["/", "/health", "/docs", "/openapi.json", "/redoc"]:
+    if request.url.path in ["/", "/health", "/docs", "/openapi.json", "/redoc", "/demo"]:
         return True
 
     api_key = request.headers.get(settings.API_KEY_HEADER)
@@ -185,7 +185,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         # Skip auth for certain paths
-        skip_paths = ["/", "/health", "/docs", "/docs/", "/openapi.json", "/redoc", "/redoc/", "/favicon.ico"]
+        skip_paths = ["/", "/health", "/docs", "/docs/", "/openapi.json", "/redoc", "/redoc/", "/favicon.ico", "/demo"]
 
         # Skip auth for OPTIONS requests (CORS preflight)
         if request.method == "OPTIONS":
@@ -194,6 +194,9 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # Normalize path (strip trailing slash for comparison)
         path = request.url.path.rstrip('/') or '/'
         skip_paths_normalized = [p.rstrip('/') or '/' for p in skip_paths]
+
+        if path.startswith("/static/"):
+            return await call_next(request)
 
         if path not in skip_paths_normalized and request.url.path not in skip_paths:
             try:
@@ -218,9 +221,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         # Skip rate limiting for certain paths
-        skip_paths = ["/", "/health", "/docs", "/openapi.json", "/redoc"]
+        skip_paths = ["/", "/health", "/docs", "/openapi.json", "/redoc", "/demo"]
 
-        if request.url.path in skip_paths:
+        if request.url.path in skip_paths or request.url.path.startswith("/static/"):
             return await call_next(request)
 
         # Use API key or IP as client identifier
