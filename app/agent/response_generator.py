@@ -11,6 +11,10 @@ from functools import lru_cache
 from collections import OrderedDict
 
 from app.config import settings
+from app.api.schemas import ExtractedIntelligence
+
+
+
 
 # Simple LRU Cache for LLM responses (max 100 entries)
 class LLMCache:
@@ -567,7 +571,7 @@ class ResponseGenerator:
         # These are high-value intelligence signals and should never be blocked as OOC.
         import re
         identity_or_contact_patterns = [
-            r"\b(my name is|mera naam)\b",
+            r"\b(my name is|mera naam|i am|i'm)\b",
             r"\b(main|mai)\s+[a-zA-Z]{3,}\s+(hu|hoon|hai)\b",
             r"\b(main|mai)\s+[a-zA-Z]{3,}(?:\s+ji)?\s+bol\s+(?:raha|rahi|rah)\s+(?:hu|hoon)\b",
             r"\b(main|mai)\s+[a-zA-Z]{3,}(?:\s+ji)?\s+speaking\b",
@@ -939,7 +943,7 @@ Someone asked you an irrelevant question during an important call. Respond with 
 
         # DEBUG: Log what intelligence we have
         if extracted_intel:
-            logger.info(f"[INTEL] Names: {extracted_intel.scammer_names}, Phones: {extracted_intel.phone_numbers}, UPIs: {extracted_intel.upi_ids}, Emails: {extracted_intel.email_addresses}")
+            logger.info(f"[INTEL] Names: {extracted_intel.scammer_names}, Phones: {extracted_intel.phone_numbers}, UPIs: {extracted_intel.upi_ids}")
         is_english_persona = persona_obj.primary_language == "English"
 
         # Build full conversation context
@@ -950,22 +954,22 @@ Someone asked you an irrelevant question during an important call. Respond with 
 
         turn_count = len(conversation_history) // 2 + 1
 
-        # Build scam type context for appropriate responses
+        # Build scam type context — REACTIVE: respond to what they actually said, don't assume details
         scam_context = ""
         if scam_type and scam_type != ScamType.UNKNOWN:
             scam_context_map = {
-                ScamType.IMPERSONATION: "SCAM TYPE: Authority Impersonation (Police/CBI/Court). Be SCARED and WORRIED. Ask for proof, case number, officer details. DO NOT ask for UPI - that makes no sense here!",
-                ScamType.BANKING_FRAUD: "SCAM TYPE: Banking fraud. Be worried about your money. Ask for bank details, reference numbers.",
-                ScamType.UPI_FRAUD: "SCAM TYPE: UPI fraud. Be confused about payment. Ask for UPI details, phone numbers.",
-                ScamType.KYC_SCAM: "SCAM TYPE: KYC scam. Be worried about account block. Ask for helpline, reference number.",
-                ScamType.JOB_SCAM: "SCAM TYPE: Job scam. Be excited but cautious. Ask for company details, contact.",
-                ScamType.LOTTERY_SCAM: "SCAM TYPE: Lottery/Prize scam. Be excited but skeptical. Ask how you won, their details.",
-                ScamType.TECH_SUPPORT: "SCAM TYPE: Tech support scam. Be confused about the problem. Ask what's wrong, their ID.",
-                ScamType.INVESTMENT_FRAUD: "SCAM TYPE: Investment fraud. Be interested but ask for proof, registration.",
-                ScamType.DELIVERY_SCAM: "SCAM TYPE: Delivery scam. Be confused about package. Ask for tracking, sender details.",
+                ScamType.IMPERSONATION: "They may be posing as an authority figure. React ONLY to what they actually said. Ask who they are, ask for proof or ID. DO NOT assume specifics (court case, arrest, etc.) they haven't mentioned. DO NOT ask for UPI — that makes no sense here.",
+                ScamType.BANKING_FRAUD: "They may be targeting your bank/money. React ONLY to what they actually said. Ask clarifying questions about THEIR claims. Don't mention 'account block' or 'fraud' unless THEY said it first.",
+                ScamType.UPI_FRAUD: "They may be trying a payment scam. React ONLY to what they actually said. Ask what payment they mean, who they are. Don't volunteer UPI/payment terms they haven't used.",
+                ScamType.KYC_SCAM: "They may be running a KYC scam. React ONLY to what they actually said. Ask what they need and why. Don't mention 'account block' or 'KYC expire' unless THEY said it first.",
+                ScamType.JOB_SCAM: "They may be offering a fake job. React ONLY to what they actually said. Ask about the company, role, who they are. Don't assume salary or fees they haven't mentioned.",
+                ScamType.LOTTERY_SCAM: "They may be running a prize/lottery scam. React ONLY to what they actually said. Ask how you supposedly won, who they are. Don't assume prize amounts they haven't stated.",
+                ScamType.TECH_SUPPORT: "They may be running a tech support scam. React ONLY to what they actually said. Ask what the problem is, who they are. Don't assume device issues they haven't mentioned.",
+                ScamType.INVESTMENT_FRAUD: "They may be pushing a fake investment. React ONLY to what they actually said. Ask for details, who they are. Don't assume returns or schemes they haven't mentioned.",
+                ScamType.DELIVERY_SCAM: "They may be running a delivery scam. React ONLY to what they actually said. Ask what package, who sent it. Don't assume tracking or order details they haven't mentioned.",
             }
-            scam_context = scam_context_map.get(scam_type, f"SCAM TYPE: {scam_type.value}. Respond appropriately.")
-            scam_context = f"\n{scam_context}\n"
+            scam_context = scam_context_map.get(scam_type, f"Possible scam ({scam_type.value}). React ONLY to what they actually said.")
+            scam_context = f"\nIMPORTANT: {scam_context}\n"
 
         # Build intelligence summary - what we know and what we need
         intel_summary = ""
@@ -988,10 +992,7 @@ Someone asked you an irrelevant question during an important call. Respond with 
             else:
                 missing.append("name")
 
-            if extracted_intel.email_addresses:
-                collected.append(f"Email: {extracted_intel.email_addresses[0]}")
-            else:
-                missing.append("email")
+            # Email extraction disabled — skip from intel tracking
 
             if collected:
                 intel_summary += f"✓ ALREADY HAVE: {', '.join(collected)}\n"
@@ -1074,10 +1075,7 @@ INSAAN JAISE RESPOND KARO. Mechanical rules follow mat karo."""
                 have_items.append(f"upi={extracted_intel.upi_ids[0]}")
             else:
                 need_items.append("upi")
-            if extracted_intel.email_addresses:
-                have_items.append(f"email={extracted_intel.email_addresses[0]}")
-            else:
-                need_items.append("email")
+            # Email extraction disabled — skip from intel reminder
 
             if have_items:
                 intel_reminder = f"\n⚠️ YOU ALREADY HAVE: {', '.join(have_items)} - DO NOT ask for these again!"

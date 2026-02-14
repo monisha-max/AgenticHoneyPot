@@ -45,15 +45,15 @@ class EntityExtractor:
         # Indian phone number patterns - enhanced with strict boundaries
         self.phone_patterns = [
             # With +91 prefix (high confidence)
-            re.compile(r'\+91[\s.-]?([6-9]\d{9})\b'),
+            re.compile(r'\+91[\s.-]?([1-9]\d{9})\b'),
             # With context keywords (high confidence)
-            re.compile(r'(?:call|contact|phone|mobile|whatsapp|wa|number|no\.|num)[\s:.-]*(?:\+?91)?[\s.-]?([6-9]\d{9})\b', re.IGNORECASE),
+            re.compile(r'(?:call|contact|phone|mobile|whatsapp|wa|number|no\.|num)[\s:.-]*(?:\+?91)?[\s.-]?([1-9]\d{9})\b', re.IGNORECASE),
             # Standalone 10-digit with strict word boundary (must not be part of longer number)
-            re.compile(r'(?:^|[^\d])([6-9]\d{9})(?:[^\d]|$)'),
+            re.compile(r'(?:^|[^\d])([1-9]\d{9})(?:[^\d]|$)'),
             # With 91 prefix (no plus)
-            re.compile(r'\b91[\s.-]?([6-9]\d{9})\b'),
+            re.compile(r'\b91[\s.-]?([1-9]\d{9})\b'),
             # Split format like 98765-43210
-            re.compile(r'\b([6-9]\d{4})[\s.-](\d{5})\b'),
+            re.compile(r'\b([1-9]\d{4})[\s.-](\d{5})\b'),
         ]
 
         # Bank account number - with context
@@ -114,7 +114,7 @@ class EntityExtractor:
 
         # WhatsApp/Telegram specific patterns
         self.messenger_pattern = re.compile(
-            r'(?:whatsapp|wa|telegram|tg)[\s:.-]*(?:\+?91)?[\s.-]?([6-9]\d{9})',
+            r'(?:whatsapp|wa|telegram|tg)[\s:.-]*(?:\+?91)?[\s.-]?([1-9]\d{9})',
             re.IGNORECASE
         )
 
@@ -186,7 +186,8 @@ class EntityExtractor:
         intelligence.bank_accounts = self._extract_bank_accounts(all_text, intelligence.phone_numbers)
         intelligence.ifsc_codes = self._extract_ifsc_codes(all_text)
         intelligence.phishing_links = self._extract_urls(all_text)
-        intelligence.email_addresses = self._extract_emails(all_text)
+        # Email extraction disabled — low value, causes UPI/email confusion
+        # intelligence.email_addresses = self._extract_emails(all_text)
         intelligence.scammer_names = self._extract_names(all_text)
         intelligence.fake_references = self._extract_references(all_text)
         intelligence.suspicious_keywords = self._extract_keywords(all_text)
@@ -240,16 +241,16 @@ class EntityExtractor:
 
                 # Clean and format
                 clean_number = re.sub(r'[\s.-]', '', number)
-                if len(clean_number) == 10 and clean_number[0] in '6789':
+                if len(clean_number) == 10 and clean_number[0] in '123456789':
                     numbers.add(f"+91{clean_number}")
-                elif len(clean_number) == 12 and clean_number.startswith('91') and clean_number[2] in '6789':
+                elif len(clean_number) == 12 and clean_number.startswith('91') and clean_number[2] in '123456789':
                     numbers.add(f"+{clean_number}")
 
         # WhatsApp/Telegram specific patterns
         messenger_matches = self.messenger_pattern.findall(text)
         for match in messenger_matches:
             clean_number = re.sub(r'[\s.-]', '', match)
-            if len(clean_number) == 10 and clean_number[0] in '6789':
+            if len(clean_number) == 10 and clean_number[0] in '123456789':
                 numbers.add(f"+91{clean_number}")
 
         return list(numbers)
@@ -341,14 +342,14 @@ class EntityExtractor:
         non_names = {
             # Pronouns and common words
             'me', 'you', 'us', 'them', 'him', 'her', 'it', 'this', 'that',
-            'here', 'there', 'now', 'then', 'today', 'tomorrow', 'anytime',
-            'anyone', 'someone', 'everyone', 'nobody', 'sir', 'madam', 'mam',
+            'here', 'there', 'now', 'then', 'today', 'tomorrow', 'anytime', 
+            'anyone', 'someone', 'everyone', 'nobody', 'sir', 'madam', 'mam', 
             'dear', 'customer', 'user', 'member', 'client', 'person',
             'urgent', 'immediately', 'important', 'please', 'kindly',
             'bank', 'account', 'payment', 'verify', 'update', 'click',
             'the', 'and', 'for', 'with', 'from', 'about', 'your', 'our',
             'regarding', 'related', 'concerning', 'matter', 'issue',
-            'calling', 'speaking', 'officer', 'manager', 'executive', 'inspector',
+            'calling', 'speaking', 'officer', 'manager', 'executive', 'inspector', 'share'
             # Titles and designations - NOT person names
             'sub', 'senior', 'junior', 'deputy', 'chief', 'assistant',
             'constable', 'sergeant', 'superintendent', 'commissioner',
@@ -366,7 +367,7 @@ class EntityExtractor:
             'income', 'tax', 'gst', 'cyber', 'cell', 'office', 'head',
             # Common response words
             'ok', 'yes', 'no', 'sure', 'done', 'hello', 'hi', 'thanks',
-            'help', 'call', 'send', 'check', 'wait', 'hold', 'ok'
+            'help', 'call', 'send', 'check', 'wait', 'hold', 'ok' , 'very'
         }
 
         # ===== PATTERN-BASED EXTRACTION (contextual) =====
@@ -441,7 +442,7 @@ class EntityExtractor:
                         elif i + 1 < len(words):
                             next_word = words[i + 1].lower()
                             # If next word is a verb/article/preposition, current word is likely not a name
-                            verbs_articles = {'is', 'are', 'the', 'a', 'an', 'from', 'of', 'here', 'calling'}
+                            verbs_articles = {'is', 'are', 'the', 'a', 'an', 'from', 'of', 'here', 'calling','your'}
                             if next_word not in verbs_articles:
                                 is_likely_name = True
                     else:
@@ -545,7 +546,7 @@ class EntityExtractor:
             phishing_links=list(set(existing_intelligence.phishing_links + new_intel.phishing_links)),
             phone_numbers=list(set(existing_intelligence.phone_numbers + new_intel.phone_numbers)),
             suspicious_keywords=list(set(existing_intelligence.suspicious_keywords + new_intel.suspicious_keywords)),
-            email_addresses=list(set(existing_intelligence.email_addresses + new_intel.email_addresses)),
+            email_addresses=[],  # Email extraction disabled
             ifsc_codes=list(set(existing_intelligence.ifsc_codes + new_intel.ifsc_codes)),
             scammer_names=list(set(existing_intelligence.scammer_names + new_intel.scammer_names)),
             fake_references=list(set(existing_intelligence.fake_references + new_intel.fake_references))
@@ -594,8 +595,9 @@ class IntelligenceAggregator:
             new_items.append("keywords")
         if set(new_intel.scammer_names) - set(existing_intelligence.scammer_names):
             new_items.append("name")
-        if set(new_intel.email_addresses) - set(existing_intelligence.email_addresses):
-            new_items.append("email")
+        # Email extraction disabled
+        # if set(new_intel.email_addresses) - set(existing_intelligence.email_addresses):
+        #     new_items.append("email")
 
         return new_intel, new_items
 
@@ -641,9 +643,7 @@ class IntelligenceAggregator:
         if intelligence.phishing_links:
             score += 0.10
         if intelligence.scammer_names:
-            score += 0.10
-        if intelligence.email_addresses:
-            score += 0.05
+            score += 0.15  # Bumped since email removed
 
         # Low value items
         if len(intelligence.suspicious_keywords) >= 3:
