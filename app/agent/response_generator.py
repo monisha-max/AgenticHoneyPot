@@ -563,6 +563,25 @@ class ResponseGenerator:
         """
         msg_lower = message.lower().strip()
 
+        # IMPORTANT: Treat self-identification and contact-detail sharing as in-context.
+        # These are high-value intelligence signals and should never be blocked as OOC.
+        import re
+        identity_or_contact_patterns = [
+            r"\b(my name is|mera naam)\b",
+            r"\b(main|mai)\s+[a-zA-Z]{3,}\s+(hu|hoon|hai)\b",
+            r"\b(main|mai)\s+[a-zA-Z]{3,}(?:\s+ji)?\s+bol\s+(?:raha|rahi|rah)\s+(?:hu|hoon)\b",
+            r"\b(main|mai)\s+[a-zA-Z]{3,}(?:\s+ji)?\s+speaking\b",
+            r"\b[a-zA-Z]{3,}\s+(speaking|this side)\b",
+            r"\b(call|contact|phone|mobile|whatsapp|number|num|no\.)\b",
+            r"\+?91[\s.-]?[6-9]\d{9}\b",
+            r"\b[6-9]\d{9}\b",
+            r"\b[a-zA-Z0-9._-]+@[a-zA-Z]{2,15}\b",
+            r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b",
+        ]
+        if any(re.search(pattern, msg_lower, re.IGNORECASE) for pattern in identity_or_contact_patterns):
+            logger.debug(f"Skipping OOC classification - likely identity/contact intel: {message[:60]}")
+            return False
+
         # FAST KEYWORD CHECK - Works on ALL turns including turn 1
         # Critical for catching "are you a bot?" on first message
         bot_probe_keywords = [
@@ -579,7 +598,7 @@ class ResponseGenerator:
         # LATENCY OPTIMIZATION: Skip LLM call if scam confidence is high
         # High confidence (>0.7) means it's clearly a scam conversation, not small talk
         # This saves ~300-500ms per turn
-        if scam_confidence > 0.7:
+        if scam_confidence > 0.55:
             logger.debug(f"Skipping OOC LLM check - high scam confidence ({scam_confidence:.2f})")
             return False
 
@@ -679,7 +698,6 @@ Reply with ONLY the letter: A, B, or C"""
                     system_msg = f"""You are {persona_obj.name}, a {persona_obj.age}-year-old {persona_obj.occupation}.
 Someone asked you an irrelevant question during an important call. Respond with mild confusion and redirect.
 - Show you don't understand why they're asking
-- Redirect to the main topic
 - Respond in {lang}
 - Keep it short (max 12 words)"""
 
