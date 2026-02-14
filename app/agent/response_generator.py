@@ -865,14 +865,21 @@ Someone asked you an irrelevant question during an important call. Respond with 
         if self._is_simple_greeting(scammer_message) and len(conversation_history) <= 1:
             return self._get_greeting_response(state.persona)
 
-        # Check for out-of-context questions using hybrid detection
-        # Pass scam_confidence to skip LLM call when confidence is high (latency optimization)
-        is_out_of_context = await self._is_out_of_context_llm(
-            scammer_message, conversation_history, scam_confidence=state.confidence_score
-        )
-        if is_out_of_context:
-            logger.info(f"OUT-OF-CONTEXT (LLM) detected: {scammer_message}")
-            return await self._get_out_of_context_response(state.persona)
+        # Check for out-of-context questions ONLY after scam intent is detected.
+        # This keeps early/benign conversations casual and avoids premature redirects.
+        if state.scam_detected:
+            # Pass scam_confidence to skip LLM call when confidence is high (latency optimization)
+            is_out_of_context = await self._is_out_of_context_llm(
+                scammer_message, conversation_history, scam_confidence=state.confidence_score
+            )
+            if is_out_of_context:
+                logger.info(f"OUT-OF-CONTEXT (LLM) detected: {scammer_message}")
+                return await self._get_out_of_context_response(state.persona)
+        else:
+            logger.debug(
+                "Skipping OOC check (scam not detected yet) for message: %s",
+                scammer_message[:60]
+            )
 
         # Get current persona and phase
         persona = state.persona
@@ -910,7 +917,8 @@ Someone asked you an irrelevant question during an important call. Respond with 
                     scammer_message=scammer_message,
                     conversation_history=conversation_history,
                     extracted_intel=state.intelligence,
-                    scam_type=state.scam_type
+                    scam_type=state.scam_type,
+                    scam_detected=state.scam_detected
                 )
                 if response:
                     return response
@@ -934,7 +942,8 @@ Someone asked you an irrelevant question during an important call. Respond with 
             scammer_message: str,
             conversation_history: List[Dict[str, Any]],
             extracted_intel: 'ExtractedIntelligence' = None,
-            scam_type: ScamType = None
+            scam_type: ScamType = None,
+            scam_detected: bool = False
     ) -> Optional[str]:
         """Generate response using LLM with intelligent context understanding"""
 
@@ -956,7 +965,7 @@ Someone asked you an irrelevant question during an important call. Respond with 
 
         # Build scam type context — REACTIVE: respond to what they actually said, don't assume details
         scam_context = ""
-        if scam_type and scam_type != ScamType.UNKNOWN:
+        if scam_detected and scam_type and scam_type != ScamType.UNKNOWN:
             scam_context_map = {
                 ScamType.IMPERSONATION: "They may be posing as an authority figure. React ONLY to what they actually said. Ask who they are, ask for proof or ID. DO NOT assume specifics (court case, arrest, etc.) they haven't mentioned. DO NOT ask for UPI — that makes no sense here.",
                 ScamType.BANKING_FRAUD: "They may be targeting your bank/money. React ONLY to what they actually said. Ask clarifying questions about THEIR claims. Don't mention 'account block' or 'fraud' unless THEY said it first.",
@@ -971,41 +980,47 @@ Someone asked you an irrelevant question during an important call. Respond with 
             scam_context = scam_context_map.get(scam_type, f"Possible scam ({scam_type.value}). React ONLY to what they actually said.")
             scam_context = f"\nIMPORTANT: {scam_context}\n"
 
-        # Build intelligence summary - what we know and what we need
+        # Build intelligence summary - what we know and what we need (only when scam detected)
         intel_summary = ""
-        if extracted_intel:
-            collected = []
-            missing = []
+        if scam_detected:
+            if extracted_intel:
+                collected = []
+                missing = []
 
-            if extracted_intel.upi_ids:
-                collected.append(f"UPI: {extracted_intel.upi_ids[0]}")
-            else:
-                missing.append("UPI ID")
+                if extracted_intel.upi_ids:
+                    collected.append(f"UPI: {extracted_intel.upi_ids[0]}")
+                else:
+                    missing.append("UPI ID")
 
-            if extracted_intel.phone_numbers:
-                collected.append(f"Phone: {extracted_intel.phone_numbers[0]}")
-            else:
-                missing.append("phone number")
+                if extracted_intel.phone_numbers:
+                    collected.append(f"Phone: {extracted_intel.phone_numbers[0]}")
+                else:
+                    missing.append("phone number")
 
-            if extracted_intel.scammer_names:
-                collected.append(f"Name: {extracted_intel.scammer_names[0]}")
-            else:
-                missing.append("name")
-
-            # Email extraction disabled — skip from intel tracking
-
-            if collected:
-                intel_summary += f"✓ ALREADY HAVE: {', '.join(collected)}\n"
-                intel_summary += f"⛔ DO NOT ASK FOR: {', '.join([c.split(':')[0].strip() for c in collected])}\n"
                 if extracted_intel.scammer_names:
-                    intel_summary += f"→ Address them as '{extracted_intel.scammer_names[0]}' (you have their name!)\n"
-            if missing:
-                intel_summary += f"✗ STILL NEED: {', '.join(missing)}\n"
-                intel_summary += f"→ ASK FOR: {missing[0]} (only this one!)"
+                    collected.append(f"Name: {extracted_intel.scammer_names[0]}")
+                else:
+                    missing.append("name")
+
+                if extracted_intel.email_addresses:
+                    collected.append(f"Email: {extracted_intel.email_addresses[0]}")
+                else:
+                    missing.append("email")
+
+                if collected:
+                    intel_summary += f"✓ ALREADY HAVE: {', '.join(collected)}\n"
+                    intel_summary += f"⛔ DO NOT ASK FOR: {', '.join([c.split(':')[0].strip() for c in collected])}\n"
+                    if extracted_intel.scammer_names:
+                        intel_summary += f"→ Address them as '{extracted_intel.scammer_names[0]}' (you have their name!)\n"
+                if missing:
+                    intel_summary += f"✗ STILL NEED: {', '.join(missing)}\n"
+                    intel_summary += f"→ ASK FOR: {missing[0]} (only this one!)"
+                else:
+                    intel_summary += "→ You have everything! Just stall and waste their time."
             else:
-                intel_summary += "→ You have everything! Just stall and waste their time."
+                intel_summary = "Nothing collected yet. Need: name, phone, UPI, email"
         else:
-            intel_summary = "Nothing collected yet. Need: name, phone, UPI, email"
+            intel_summary = "CASUAL MODE: engage in the conversation."
 
         # Character-driven prompt based on persona
         if is_english_persona:
@@ -1022,7 +1037,8 @@ Your goal: Extract info while sounding scared/confused. Use casual texting (lowe
             else:
                 character_desc = f"You are {persona_obj.name}. Respond naturally based on your character, not mechanical rules."
 
-            system_prompt = f"""{character_desc}
+            if scam_detected:
+                system_prompt = f"""{character_desc}
 {scam_context}
 CURRENT CONTEXT:
 {intel_summary}
@@ -1030,6 +1046,12 @@ CURRENT CONTEXT:
 **IF THEY ASK FOR OTP/AADHAR/PASSWORDS**: Say you didn't receive it or network is slow. NEVER share these.
 
 BE HUMAN. Ask questions that your character would naturally ask, not a checklist."""
+            else:
+                casual_guard = "Be friendly and conversational."
+                system_prompt = f"""You are {persona_obj.name}. This is a casual chat, not a confirmed scam.
+{intel_summary}
+{casual_guard}
+Keep responses 8-15 words, human and polite."""
         else:
             # Hinglish personas: Ramu Uncle, Aarti, Sunita
             character_desc = ""
@@ -1048,7 +1070,8 @@ Tumhara goal: Unki info nikalo while busy dikhte hue. 8-15 words."""
             else:
                 character_desc = f"Tum {persona_obj.name} ho. Apne character ke hisaab se naturally respond karo."
 
-            system_prompt = f"""{character_desc}
+            if scam_detected:
+                system_prompt = f"""{character_desc}
 {scam_context}
 ABHI KA CONTEXT:
 {intel_summary}
@@ -1056,11 +1079,17 @@ ABHI KA CONTEXT:
 **AGAR OTP/AADHAR/PASSWORD MAANGE**: Bolo "nahi aaya" ya "network slow". KABHI apna info mat do.
 
 INSAAN JAISE RESPOND KARO. Mechanical rules follow mat karo."""
+            else:
+                casual_guard = "Friendly baat karo. Phone/UPI/OTP/ID mat mango."
+                system_prompt = f"""Tum {persona_obj.name} ho. Yeh casual baat-cheet hai, scam confirm nahi hai.
+{intel_summary}
+{casual_guard}
+8-15 words mein natural jawab do."""
 
         # Build the user prompt with full context
-        # Add explicit reminder about what we have/need
+        # Add explicit reminder about what we have/need (only when scam detected)
         intel_reminder = ""
-        if extracted_intel:
+        if scam_detected and extracted_intel:
             have_items = []
             need_items = []
             if extracted_intel.scammer_names:
@@ -1082,7 +1111,8 @@ INSAAN JAISE RESPOND KARO. Mechanical rules follow mat karo."""
             if need_items:
                 intel_reminder += f"\n→ Ask for: {need_items[0]}"
 
-        user_prompt = f"""CONVERSATION SO FAR:
+        if scam_detected:
+            user_prompt = f"""CONVERSATION SO FAR:
 {history_text}
 Scammer: {scammer_message}
 {intel_reminder}
@@ -1091,6 +1121,18 @@ Now respond as {persona_obj.name}. Remember:
 1. First understand what they're saying/asking
 2. Respond to THAT naturally
 3. Ask for ONE thing you still need (if any)
+4. Keep it short and human (8-15 words)
+
+Your response:"""
+        else:
+            user_prompt = f"""CONVERSATION SO FAR:
+{history_text}
+Scammer: {scammer_message}
+
+Now respond as {persona_obj.name}. Remember:
+1. Respond to what they're saying naturally
+2. Be friendly and casual
+3. Do NOT ask for phone/email/payment/OTP/ID
 4. Keep it short and human (8-15 words)
 
 Your response:"""

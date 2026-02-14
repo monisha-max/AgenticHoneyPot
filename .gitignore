@@ -54,3 +54,4 @@ htmlcov/
 *.bak
 tmp/
 temp/
+dump.rdb

@@ -97,7 +97,12 @@ class LLMSemanticAnalyzer:
             return self._parse_response(response)
 
         except Exception as e:
-            logger.error(f"LLM analysis failed: {e}")
+            logger.exception(
+                "LLM analysis failed (provider=%s, model=%s): %s",
+                self.provider,
+                settings.LLM_MODEL,
+                e
+            )
             return self._fallback_analysis(text)
 
     def _build_analysis_prompt(
@@ -212,7 +217,12 @@ Only respond with the JSON, no other text."""
             )
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse LLM response: {e}")
+            logger.exception(
+                "Failed to parse LLM response (provider=%s, chars=%s): %s",
+                self.provider,
+                len(response) if response else 0,
+                e
+            )
             return self._fallback_analysis("")
 
     def _fallback_analysis(self, text: str) -> LLMAnalysisResult:

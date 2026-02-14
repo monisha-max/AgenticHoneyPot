@@ -4,6 +4,7 @@ Defines all endpoints and their handlers
 """
 
 import logging
+from uuid import uuid4
 from datetime import datetime
 from typing import Optional, Any, Dict
 
@@ -51,6 +52,13 @@ def get_session_manager() -> SessionManager:
     Uses the orchestrator's session manager to ensure consistency.
     """
     return get_orchestrator().session_manager
+
+
+def _get_request_id(request: Request) -> str:
+    request_id = getattr(request.state, "request_id", None)
+    if request_id:
+        return request_id
+    return f"req-{uuid4().hex[:12]}"
 
 
 # ============================================================================
@@ -173,7 +181,14 @@ def _parse_flexible_request(body: Dict[str, Any]) -> HoneypotRequest:
     logger.info(f"Raw request body: {body}")
 
     # Extract sessionId (various possible field names)
-    session_id = body.get('sessionId') or body.get('session_id') or body.get('id') or 'default-session'
+    session_id = (
+        body.get('sessionId') or
+        body.get('session_id') or
+        body.get('senderId') or
+        body.get('sender_id') or
+        body.get('id') or
+        'default-session'
+    )
 
     # Extract message - handle various formats
     message_data = body.get('message')
@@ -500,10 +515,9 @@ def _generate_fallback_response(scammer_message: str) -> str:
     # Generic fallback
     else:
         responses = [
-            "Ji, main sun raha hoon. Thoda detail mein samjhao kya baat hai.",
-            "Arey, mujhe samajh nahi aaya. Ek baar phir se boliye?",
+            "Ji, Thoda detail mein samjhao kya baat hai.",
+            "Arey, mujhe samajh nahi aaya. Thoda detail mein samjhao kya baat hai?",
             "Haan ji? Aap kaun bol rahe ho? Mujhe thoda aur batao.",
-            "Accha? Yeh kya hai? Mera phone pe network issue hai, thoda slowly bolo."
         ]
 
     return random.choice(responses)

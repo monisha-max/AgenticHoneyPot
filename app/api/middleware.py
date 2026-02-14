@@ -147,6 +147,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
         # Generate request ID
         request_id = f"{int(time.time() * 1000)}"
+        request.state.request_id = request_id
 
         # Log request
         logger.info(

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Honeypot WhatsApp Demo</title>
+  <link rel="stylesheet" href="/static/demo/demo.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="rail" aria-label="WhatsApp Rail">
+      <div class="rail-top">
+        <div class="rail-avatar" aria-hidden="true"></div>
+        <button class="rail-icon" aria-label="Status">○</button>
+        <button class="rail-icon active" aria-label="Chats">💬</button>
+        <button class="rail-icon" aria-label="Calls">📞</button>
+      </div>
+      <div class="rail-bottom">
+        <button class="rail-icon" aria-label="Settings">⚙</button>
+      </div>
+    </nav>
+    <aside class="sidebar" aria-label="Chats">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Chats</div>
+        <div class="sidebar-actions">
+          <button class="icon-btn" title="New Chat" aria-label="New Chat">✎</button>
+          <button class="icon-btn" title="Menu" aria-label="Menu">⋯</button>
+        </div>
+      </div>
+
+      <div class="sidebar-search">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input type="text" placeholder="Search" disabled />
+      </div>
+
+      <div class="sidebar-tabs">
+        <button class="tab active">All</button>
+        <button class="tab">Unread</button>
+        <button class="tab">Favourites</button>
+        <button class="tab">Groups</button>
+      </div>
+
+      <div class="chat-list">
+        <div class="chat-item active" data-chat-id="ramu_uncle" data-chat-name="Ramu Uncle" data-persona="ramu_uncle" data-avatar="/static/demo/ramu_uncle.png">
+          <div class="avatar" aria-hidden="true"></div>
+          <div class="chat-meta">
+            <div class="chat-name">Ramu Uncle</div>
+            <div class="chat-preview">Demo session ready</div>
+          </div>
+          <div class="chat-time">Now</div>
+        </div>
+        <div class="chat-item" data-chat-id="ananya_student" data-chat-name="Ananya Student" data-persona="ananya_student" data-avatar="/static/demo/ananya_student.png">
+          <div class="avatar" aria-hidden="true"></div>
+          <div class="chat-meta">
+            <div class="chat-name">Ananya Student</div>
+            <div class="chat-preview">Demo session ready</div>
+          </div>
+          <div class="chat-time">Now</div>
+        </div>
+        <div class="chat-item" data-chat-id="aarti_homemaker" data-chat-name="Aarti Homemaker" data-persona="aarti_homemaker" data-avatar="/static/demo/Aarti_homemaker.png">
+          <div class="avatar" aria-hidden="true"></div>
+          <div class="chat-meta">
+            <div class="chat-name">Aarti Homemaker</div>
+            <div class="chat-preview">Demo session ready</div>
+          </div>
+          <div class="chat-time">Now</div>
+        </div>
+        <div class="chat-item" data-chat-id="vikram_it" data-chat-name="Vikram IT" data-persona="vikram_it" data-avatar="/static/demo/vikram_IT.png">
+          <div class="avatar" aria-hidden="true"></div>
+          <div class="chat-meta">
+            <div class="chat-name">Vikram IT</div>
+            <div class="chat-preview">Demo session ready</div>
+          </div>
+          <div class="chat-time">Now</div>
+        </div>
+        <div class="chat-item" data-chat-id="sunita_shop" data-chat-name="Sunita Shop" data-persona="sunita_shop" data-avatar="/static/demo/sunita_shop.png">
+          <div class="avatar" aria-hidden="true"></div>
+          <div class="chat-meta">
+            <div class="chat-name">Sunita Shop</div>
+            <div class="chat-preview">Demo session ready</div>
+          </div>
+          <div class="chat-time">Now</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="chat-panel">
+      <header class="chat-header">
+        <div class="header-left">
+          <div class="avatar" id="headerAvatar" aria-hidden="true"></div>
+          <div>
+            <div class="chat-title">Ramu Uncle</div>
+            <div class="chat-subtitle">Online</div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" title="Search" aria-label="Search">🔍</button>
+          <button class="icon-btn" title="Call" aria-label="Call">📞</button>
+          <button class="icon-btn" title="Menu" aria-label="More">⋯</button>
+        </div>
+      </header>
+
+      <section class="chat-body" id="chatBody" aria-live="polite"></section>
+
+      <footer class="chat-input">
+        <div class="input-wrap">
+          <button class="ghost-icon" aria-label="Emoji">😊</button>
+          <button class="ghost-icon" aria-label="Attach">📎</button>
+          <input id="messageInput" type="text" placeholder="Type a message" autocomplete="off" />
+          <button id="sendBtn" class="send-btn" aria-label="Send">➤</button>
+          <button class="ghost-icon" aria-label="Voice">🎤</button>
+        </div>
+        <div class="chat-meta-bar">
+          <div class="session-pill" id="sessionPill"></div>
+          <div class="status-pill" id="statusPill">Running</div>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <div class="modal hidden" id="completionModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modalTitle">Scam Detected</h2>
+        <button class="icon-btn" id="closeModalBtn" aria-label="Close">X</button>
+      </div>
+      <p class="modal-subtitle" id="modalSubtitle">Conversation completed.</p>
+      <div class="json-block">
+        <pre id="guviPayload"></pre>
+      </div>
+      <div class="modal-actions">
+        <button id="newSessionBtn" class="primary">New Session</button>
+        <button id="dismissBtn" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="broadcast-widget" id="broadcastWidget" aria-live="polite">
+    <button class="broadcast-toggle" id="broadcastToggle" aria-label="Open Send All">Send All</button>
+    <div class="broadcast-panel">
+      <div class="broadcast-header">
+        <div>
+          <div class="broadcast-title">Send To All Personas</div>
+          <div class="broadcast-subtitle">Broadcast the same message to every chat.</div>
+        </div>
+        <button class="icon-btn" id="broadcastMinimize" aria-label="Minimize">—</button>
+      </div>
+      <textarea id="broadcastInput" placeholder="Type a message to send to all chats..."></textarea>
+      <div class="broadcast-actions">
+        <button class="ghost" id="broadcastClear">Clear</button>
+        <button class="primary" id="broadcastSend">Send All</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.DEMO_API_KEY = "__DEMO_API_KEY__";
+  </script>
+  <script src="/static/demo/demo.js"></script>
+</body>
+</html>

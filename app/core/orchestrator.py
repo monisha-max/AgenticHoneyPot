@@ -101,7 +101,7 @@ class ConversationOrchestrator:
             # Step 1: Get or create session
             state = await self._get_or_create_session(session_id, message, metadata)
         except Exception as e:
-            logger.error(f"Failed to get/create session: {e}")
+            logger.exception(f"Failed to get/create session {session_id}: {e}")
             # Create a minimal state for fallback
             state = SessionState(
                 session_id=session_id,
@@ -153,7 +153,13 @@ class ConversationOrchestrator:
             # Persist state updates (e.g., used_techniques) made during response generation
             await self.session_manager.update_session(state.session_id, state)
         except Exception as e:
-            logger.error(f"Response generation failed, using fallback: {e}")
+            logger.exception(
+                "Response generation failed for session %s (persona=%s, phase=%s): %s",
+                state.session_id,
+                state.persona.value,
+                state.conversation_phase.value,
+                e
+            )
             response = self._get_fallback_response(state, message.text)
 
         try:
@@ -469,7 +475,7 @@ class ConversationOrchestrator:
         # USE SESSION'S STORED HISTORY (has both scammer + agent messages)
         # This is critical because GUVI may send empty conversationHistory
         # and rely on sessionId for state. The session already tracks both sides.
-        history_dicts = state.conversation_history[-20:] if state.conversation_history else []
+        history_dicts = state.conversation_history[-40:] if state.conversation_history else []
 
         # Fallback to request history if session history is empty (first message)
         if not history_dicts and history:
