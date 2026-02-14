@@ -3,11 +3,10 @@
 Interactive CLI for testing the Honeypot API
 """
 import requests
-import json
 import uuid
 from datetime import datetime
 
-API_URL = "http://localhost:8000/api/honeypot"
+API_URL = "http://localhost:8000/api/honeypot-demo"
 API_KEY = "test-api-key-123"
 
 # Colors for terminal
@@ -105,14 +104,43 @@ def main():
         history.append({"sender": "scammer", "text": message})
         history.append({"sender": "user", "text": reply})
 
-        # Check for scam indicators
-        is_scam, keywords = check_scam_keywords(message)
-        scam_status = f"{RED}YES{RESET}" if is_scam else f"{GREEN}NO{RESET}"
+        # Local heuristic indicators (for quick input signal only)
+        local_is_scam, local_keywords = check_scam_keywords(message)
+        local_status = f"{RED}YES{RESET}" if local_is_scam else f"{GREEN}NO{RESET}"
+
+        # Backend state from API (source of truth)
+        session_state = result.get("sessionState") or {}
+        backend_is_scam = session_state.get("scam_detected")
+        backend_status = "UNKNOWN"
+        if backend_is_scam is True:
+            backend_status = f"{RED}YES{RESET}"
+        elif backend_is_scam is False:
+            backend_status = f"{GREEN}NO{RESET}"
+
+        intel = (session_state.get("intelligence") or {})
+        extracted_summary = (
+            f"names={len(intel.get('scammer_names', []))}, "
+            f"phones={len(intel.get('phone_numbers', []))}, "
+            f"upis={len(intel.get('upi_ids', []))}, "
+            f"emails={len(intel.get('email_addresses', []))}, "
+            f"banks={len(intel.get('bank_accounts', []))}"
+        )
+
+        completed = bool(result.get("completed"))
+        completion_reason = result.get("completionReason")
 
         # Show state info
         print(f"\n{YELLOW}{'─' * 50}")
         print(f"Turn: {turn} | Session: {session_id}")
-        print(f"Scam Indicators: {scam_status} {CYAN}[{', '.join(keywords[:5])}]{RESET}" if keywords else f"Scam Indicators: {scam_status}")
+        print(
+            f"Local Indicators: {local_status} {CYAN}[{', '.join(local_keywords[:5])}]{RESET}"
+            if local_keywords else f"Local Indicators: {local_status}"
+        )
+        print(f"Backend ScamDetected: {backend_status}")
+        print(f"Extracted Intel: {extracted_summary}")
+        if completed:
+            print(f"{RED}Session Completed{RESET} | Reason: {completion_reason}")
+            print(f"{YELLOW}Start a new session with 'new' to continue testing.{RESET}")
         print(f"{'─' * 50}{RESET}")
 
 if __name__ == "__main__":

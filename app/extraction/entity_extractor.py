@@ -100,7 +100,7 @@ class EntityExtractor:
 
         # Name patterns (for scammer names) - enhanced
         self.name_patterns = [
-            re.compile(r'(?:my name is|i am|this is|mera naam|mai|main)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', re.IGNORECASE),
+            re.compile(r"(?:my name is|i am|i'm|im|this is|mera naam|mai|main)\s+([A-Za-z]{2,}(?:\s+[A-Za-z]{2,})?)", re.IGNORECASE),
             re.compile(r'(?:Mr\.|Mrs\.|Ms\.|Shri|Smt\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', re.IGNORECASE),
             re.compile(r'(?:contact|speak to|ask for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', re.IGNORECASE),
             re.compile(r'(?:from|officer|manager|executive)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', re.IGNORECASE),
@@ -188,6 +188,7 @@ class EntityExtractor:
         intelligence.phishing_links = self._extract_urls(all_text)
         # Email extraction disabled — low value, causes UPI/email confusion
         # intelligence.email_addresses = self._extract_emails(all_text)
+        # Name extraction is handled by LLM enricher (conversation-aware)
         intelligence.scammer_names = self._extract_names(all_text)
         intelligence.fake_references = self._extract_references(all_text)
         intelligence.suspicious_keywords = self._extract_keywords(all_text)
@@ -335,128 +336,8 @@ class EntityExtractor:
         return list(set(emails))
 
     def _extract_names(self, text: str) -> List[str]:
-        """Extract potential scammer names - both contextual and standalone"""
-        names = []
-
-        # Common words that are NOT names - filter these out
-        non_names = {
-            # Pronouns and common words
-            'me', 'you', 'us', 'them', 'him', 'her', 'it', 'this', 'that',
-            'here', 'there', 'now', 'then', 'today', 'tomorrow', 'anytime', 
-            'anyone', 'someone', 'everyone', 'nobody', 'sir', 'madam', 'mam', 
-            'dear', 'customer', 'user', 'member', 'client', 'person',
-            'urgent', 'immediately', 'important', 'please', 'kindly',
-            'bank', 'account', 'payment', 'verify', 'update', 'click',
-            'the', 'and', 'for', 'with', 'from', 'about', 'your', 'our',
-            'regarding', 'related', 'concerning', 'matter', 'issue',
-            'calling', 'speaking', 'officer', 'manager', 'executive', 'inspector', 'share'
-            # Titles and designations - NOT person names
-            'sub', 'senior', 'junior', 'deputy', 'chief', 'assistant',
-            'constable', 'sergeant', 'superintendent', 'commissioner',
-            'director', 'chairman', 'president', 'secretary', 'advocate',
-            'doctor', 'professor', 'incharge', 'supervisor', 'agent',
-            'colonel', 'major', 'captain', 'general', 'lieutenant',
-            'head', 'lead', 'principal', 'associate', 'additional',
-            # Bank names - NOT person names
-            'sbi', 'hdfc', 'icici', 'axis', 'kotak', 'pnb', 'bob', 'canara',
-            'union', 'idbi', 'idfc', 'yes', 'rbl', 'federal', 'bandhan',
-            'indusind', 'hsbc', 'citi', 'standard', 'chartered', 'dbs',
-            'rbi', 'npci', 'upi', 'paytm', 'phonepe', 'gpay', 'amazon',
-            # Government/organization names
-            'government', 'ministry', 'department', 'police', 'customs',
-            'income', 'tax', 'gst', 'cyber', 'cell', 'office', 'head',
-            # Common response words
-            'ok', 'yes', 'no', 'sure', 'done', 'hello', 'hi', 'thanks',
-            'help', 'call', 'send', 'check', 'wait', 'hold', 'ok' , 'very'
-        }
-
-        # ===== PATTERN-BASED EXTRACTION (contextual) =====
-        for pattern in self.name_patterns:
-            matches = pattern.findall(text)
-            for name in matches:
-                # Clean and validate
-                clean_name = name.strip().title()
-
-                # Filter out non-name words from the end (e.g., "Ram From" → "Ram")
-                name_words = clean_name.split()
-                filtered_words = []
-                for word in name_words:
-                    if word.lower() in non_names:
-                        break  # Stop at first non-name word
-                    filtered_words.append(word)
-
-                if not filtered_words:
-                    continue
-
-                clean_name = " ".join(filtered_words)
-
-                # Name must be >= 3 chars AND (single word OR <= 3 words)
-                if len(clean_name) >= 3 and (' ' not in clean_name or len(clean_name.split()) <= 3):
-                    names.append(clean_name)
-
-        # ===== FLEXIBLE STANDALONE NAME EXTRACTION =====
-        # Look for words that are likely names (capitalized OR response context)
-        # Split into lines/sentences for better context
-        sentences = re.split(r'[.!?;\n]', text)
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if not sentence:
-                continue
-
-            # Look for standalone words that are likely names
-            words = sentence.split()
-
-            # Special case: single word response (very likely a name)
-            if len(words) == 1:
-                word = words[0]
-                # Must be all alphabetic and >= 3 chars
-                if len(word) >= 3 and re.match(r'^[A-Za-z]+$', word) and word.lower() not in non_names:
-                    clean_word = word.title()
-                    if len(clean_word) >= 3:
-                        names.append(clean_word)
-                continue
-
-            # Multi-word analysis
-            for i, word in enumerate(words):
-                # Skip if word is too short, all caps, or contains numbers/special chars
-                if len(word) < 3 or word.isupper() or not re.match(r'^[A-Za-z]+$', word):
-                    continue
-
-                # Skip if it's a non-name
-                if word.lower() in non_names:
-                    continue
-
-                # Check if it's capitalized (likely a proper noun/name)
-                if word[0].isupper():
-                    clean_word = word.title()
-
-                    # Additional validation:
-                    # - If it's the first word AND followed by non-names, likely just sentence start
-                    # - If it's a standalone word in a response, likely a name
-                    is_likely_name = False
-
-                    if i == 0:
-                        # First word: only if it's the ONLY word or others after aren't verbs/articles
-                        if len(words) == 1:
-                            is_likely_name = True
-                        elif i + 1 < len(words):
-                            next_word = words[i + 1].lower()
-                            # If next word is a verb/article/preposition, current word is likely not a name
-                            verbs_articles = {'is', 'are', 'the', 'a', 'an', 'from', 'of', 'here', 'calling','your'}
-                            if next_word not in verbs_articles:
-                                is_likely_name = True
-                    else:
-                        # Not first word: likely a name
-                        is_likely_name = True
-
-                    # Additional check: if sentence is very short (1-3 words), likely a name/response
-                    if len(words) <= 3:
-                        is_likely_name = True
-
-                    if is_likely_name and len(clean_word) >= 3:
-                        names.append(clean_word)
-
-        return list(set(names))
+        """Name extraction intentionally disabled (LLM enricher handles this)."""
+        return []
 
     def _extract_references(self, text: str) -> List[str]:
         """Extract reference/ticket numbers"""

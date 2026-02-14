@@ -4,8 +4,10 @@ The central hub that coordinates all components of the honeypot system
 """
 
 import logging
+import re
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import asyncio
 
 from app.config import settings
 from app.api.schemas import (
@@ -31,6 +33,10 @@ from app.agent.strategy_selector import StrategySelector
 from app.agent.response_generator import ResponseGenerator
 from app.extraction.entity_extractor import EntityExtractor, IntelligenceAggregator
 from app.extraction.url_analyzer import URLAnalyzer
+from app.extraction.llm_intelligence_enricher import (
+    LLMIntelligenceEnricher,
+    EnrichmentResult
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +79,7 @@ class ConversationOrchestrator:
         self.entity_extractor = EntityExtractor()
         self.intelligence_aggregator = IntelligenceAggregator()
         self.url_analyzer = URLAnalyzer()
+        self.llm_intel_enricher = LLMIntelligenceEnricher()
 
         logger.info("Initialized ConversationOrchestrator with all components")
 
@@ -133,6 +140,13 @@ class ConversationOrchestrator:
             state = await self._extract_intelligence(state, message)
         except Exception as e:
             logger.warning(f"Intelligence extraction failed: {e}")
+
+        try:
+            # Step 4b: Conversation-aware LLM enrichment for soft entities (name/email)
+            # Run during active scam sessions when these fields are still missing.
+            state = await self._enrich_soft_entities_if_needed(state)
+        except Exception as e:
+            logger.warning(f"LLM soft enrichment skipped due to error: {e}")
 
         try:
             # Step 5: Update emotional state based on scammer tactics
@@ -276,6 +290,7 @@ class ConversationOrchestrator:
             history: List[Message]
     ) -> SessionState:
         """Run ensemble scam detection"""
+        was_scam = state.scam_detected
         # Build history text list
         history_texts = [msg.text for msg in history] if history else []
 
@@ -320,6 +335,10 @@ class ConversationOrchestrator:
                     f"Analysis: {detection_result.reasoning}"
                 )
 
+        # If scam intent just got confirmed, refresh intelligence from recent history
+        if not was_scam and state.scam_detected:
+            state = await self._refresh_intelligence_from_history(state)
+
         # CRITICAL: Merge detected keywords into intelligence for callback payload
         if detection_result.keywords_found:
             existing_keywords = set(state.intelligence.suspicious_keywords)
@@ -328,6 +347,261 @@ class ConversationOrchestrator:
             await self.session_manager.update_intelligence(state.session_id, state.intelligence)
 
         return state
+
+    async def _refresh_intelligence_from_history(self, state: SessionState) -> SessionState:
+        """
+        When scam is detected mid-conversation, re-extract intel from recent history
+        so we don't ask for details already shared.
+        """
+        try:
+            latest_state = await self.session_manager.get_session(state.session_id)
+            if not latest_state or not latest_state.conversation_history:
+                return state
+
+            history_texts = [
+                msg.get("text", "")
+                for msg in latest_state.conversation_history
+                if msg.get("sender") == "scammer"
+            ]
+            if not history_texts:
+                return latest_state
+
+            combined = " ".join(history_texts[-20:])
+            if not combined.strip():
+                return latest_state
+
+            history_intel = self.entity_extractor.extract_all(combined)
+            updated_state = await self.session_manager.update_intelligence(
+                latest_state.session_id,
+                history_intel
+            )
+            updated_state = await self._run_llm_enrichment(
+                updated_state,
+                history_texts,
+                reason="scam_flip"
+            )
+            return updated_state
+        except Exception as e:
+            logger.warning(f"History re-extraction failed for {state.session_id}: {e}")
+            return state
+
+    def _merge_enriched_intelligence(
+            self,
+            existing: ExtractedIntelligence,
+            enrichment: EnrichmentResult
+    ) -> ExtractedIntelligence:
+        """
+        Merge LLM enrichment into intelligence.
+        Guardrails:
+        - confidence + evidence required
+        - never remove existing findings
+        - normalize and validate candidate formats per field
+        """
+        merged = ExtractedIntelligence(**existing.model_dump())
+        min_conf = settings.LLM_INTEL_MIN_CONFIDENCE
+
+        def _append_unique(bucket: List[str], value: str) -> None:
+            if value and value not in bucket:
+                bucket.append(value)
+
+        list_fields = {
+            "bank_accounts",
+            "upi_ids",
+            "phishing_links",
+            "phone_numbers",
+            "suspicious_keywords",
+            "email_addresses",
+            "ifsc_codes",
+            "scammer_names",
+            "fake_references",
+        }
+
+        for candidate in enrichment.candidates:
+            if candidate.confidence < min_conf:
+                continue
+            if not candidate.evidence.strip():
+                continue
+
+            if candidate.field not in list_fields:
+                continue
+
+            normalized_values = self._normalize_enriched_values(candidate.field, candidate.value)
+            if not normalized_values:
+                continue
+
+            bucket = getattr(merged, candidate.field, None)
+            if not isinstance(bucket, list):
+                continue
+            for normalized in normalized_values:
+                _append_unique(bucket, normalized)
+
+        return merged
+
+    def _normalize_enriched_values(self, field: str, value: str) -> List[str]:
+        """Validate and normalize LLM enrichment values for safe merge."""
+        raw = (value or "").strip()
+        if not raw:
+            return []
+
+        if field == "scammer_names":
+            cleaned = " ".join(raw.split())
+            if not (2 <= len(cleaned) <= 60):
+                return []
+            if any(ch.isdigit() for ch in cleaned):
+                return []
+            tokens = cleaned.split()
+            if len(tokens) > 4:
+                return []
+            return [cleaned.title()]
+
+        if field == "email_addresses":
+            cleaned = raw.lower()
+            if re.fullmatch(r"[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}", cleaned):
+                return [cleaned]
+            return []
+
+        if field == "phone_numbers":
+            digits = re.sub(r"\D", "", raw)
+            if len(digits) == 10 and digits[0] in "123456789":
+                return [f"+91{digits}"]
+            if len(digits) == 12 and digits.startswith("91") and digits[2] in "123456789":
+                return [f"+{digits}"]
+            return []
+
+        if field == "upi_ids":
+            cleaned = raw.lower()
+            if re.fullmatch(r"[a-z0-9][a-z0-9._-]{1,}@[a-z]{2,15}", cleaned):
+                return [cleaned]
+            return []
+
+        if field == "bank_accounts":
+            digits = re.sub(r"\D", "", raw)
+            if len(digits) in {10, 12}:
+                return []
+            if 9 <= len(digits) <= 18:
+                return [digits]
+            return []
+
+        if field == "ifsc_codes":
+            cleaned = raw.upper().replace(" ", "")
+            if re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", cleaned):
+                return [cleaned]
+            return []
+
+        if field == "phishing_links":
+            cleaned = raw.strip()
+            if cleaned.startswith("www."):
+                cleaned = f"http://{cleaned}"
+            if re.match(r"^https?://[^\s/$.?#].[^\s]*$", cleaned, re.IGNORECASE):
+                return [cleaned]
+            return []
+
+        if field == "fake_references":
+            cleaned = re.sub(r"[^A-Za-z0-9]", "", raw).upper()
+            if 6 <= len(cleaned) <= 20:
+                return [cleaned]
+            return []
+
+        if field == "suspicious_keywords":
+            cleaned = " ".join(raw.lower().split())
+            if 2 <= len(cleaned) <= 40:
+                return [cleaned]
+            return []
+
+        return []
+
+    async def _run_llm_enrichment(
+            self,
+            state: SessionState,
+            scammer_messages: List[str],
+            reason: str
+    ) -> SessionState:
+        """
+        Run LLM enrichment with timeout and fail-open behavior.
+        """
+        if not settings.ENABLE_LLM_INTEL_ENRICHMENT:
+            return state
+        if not scammer_messages:
+            return state
+
+        try:
+            enrichment = await asyncio.wait_for(
+                self.llm_intel_enricher.enrich_recent_messages(scammer_messages),
+                timeout=settings.LLM_INTEL_TIMEOUT
+            )
+            merged_intel = self._merge_enriched_intelligence(state.intelligence, enrichment)
+
+            if merged_intel.model_dump() == state.intelligence.model_dump():
+                return state
+
+            updated_state = await self.session_manager.update_intelligence(
+                state.session_id,
+                merged_intel
+            )
+
+            tracked_fields = [
+                "bank_accounts",
+                "upi_ids",
+                "phishing_links",
+                "phone_numbers",
+                "suspicious_keywords",
+                "email_addresses",
+                "ifsc_codes",
+                "scammer_names",
+                "fake_references",
+            ]
+            added_parts = []
+            for field in tracked_fields:
+                before = set(getattr(state.intelligence, field, []))
+                after = set(getattr(updated_state.intelligence, field, []))
+                delta = len(after - before)
+                if delta > 0:
+                    added_parts.append(f"{field}+{delta}")
+
+            await self.session_manager.add_agent_note(
+                state.session_id,
+                f"LLM enrichment ({reason}): {', '.join(added_parts) if added_parts else 'no new fields'}"
+            )
+            return updated_state
+        except asyncio.TimeoutError:
+            logger.warning("LLM enrichment timed out for %s (%s)", state.session_id, reason)
+            return state
+        except Exception as e:
+            logger.warning("LLM enrichment failed for %s (%s): %s", state.session_id, reason, e)
+            return state
+
+    async def _enrich_soft_entities_if_needed(self, state: SessionState) -> SessionState:
+        """
+        Keep intelligence up-to-date using conversation-aware LLM extraction.
+        Only runs when scam has been detected and key fields are still missing.
+        """
+        if not state.scam_detected:
+            return state
+        if (
+            state.intelligence.scammer_names
+            and state.intelligence.email_addresses
+            and state.intelligence.phone_numbers
+            and state.intelligence.upi_ids
+        ):
+            return state
+
+        latest_state = await self.session_manager.get_session(state.session_id)
+        if not latest_state:
+            return state
+
+        scammer_messages = [
+            m.get("text", "")
+            for m in (latest_state.conversation_history or [])[-40:]
+            if m.get("sender") == "scammer"
+        ]
+        if not scammer_messages:
+            return latest_state
+
+        return await self._run_llm_enrichment(
+            latest_state,
+            scammer_messages,
+            reason="active_session"
+        )
 
     async def _extract_intelligence(
             self,
@@ -501,6 +775,19 @@ class ConversationOrchestrator:
         state = await self.session_manager.get_session(state.session_id)
 
         if self.completion_detector.should_complete(state):
+            # Final enrichment pass before closing/callback.
+            scammer_messages = [
+                m.get("text", "")
+                for m in (state.conversation_history or [])[-40:]
+                if m.get("sender") == "scammer"
+            ]
+            state = await self._run_llm_enrichment(
+                state,
+                scammer_messages,
+                reason="pre_completion"
+            )
+            state = await self.session_manager.get_session(state.session_id) or state
+
             # Mark session as complete
             state = await self.session_manager.end_session(state.session_id)
 

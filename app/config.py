@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gpt-4o-mini"  # Default model
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 500
+    ENABLE_LLM_INTEL_ENRICHMENT: bool = True
+    LLM_INTEL_TIMEOUT: int = 4
+    LLM_INTEL_MIN_CONFIDENCE: float = 0.75
 
     # Redis Configuration (for session management)
     USE_REDIS: bool = False  # Toggle to switch between Redis and in-memory store

@@ -12,10 +12,6 @@ from collections import OrderedDict
 
 from app.config import settings
 from app.api.schemas import ExtractedIntelligence
-
-
-
-
 # Simple LRU Cache for LLM responses (max 100 entries)
 class LLMCache:
     def __init__(self, maxsize=100):
@@ -49,6 +45,7 @@ from app.api.schemas import (
 from app.agent.persona_engine import PersonaEngine, PersonaProfile
 from app.agent.emotional_state import EmotionalStateMachine
 from app.agent.strategy_selector import StrategySelector, ProbingTechnique
+from app.extraction.entity_extractor import EntityExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +60,7 @@ class ResponseGenerator:
         self.persona_engine = PersonaEngine()
         self.emotional_state_machine = EmotionalStateMachine()
         self.strategy_selector = StrategySelector()
+        self.entity_extractor = EntityExtractor()
         self._init_llm_client()
         self._init_templates()
 
@@ -963,6 +961,18 @@ Someone asked you an irrelevant question during an important call. Respond with 
 
         turn_count = len(conversation_history) // 2 + 1
 
+        # Use history-aware intel for prompts to avoid re-asking known details
+        prompt_intel = extracted_intel
+        if scam_detected and extracted_intel and conversation_history:
+            history_texts = [
+                msg.get("text", "")
+                for msg in conversation_history[-20:]
+                if msg.get("sender") == "scammer"
+            ]
+            if history_texts:
+                history_intel = self.entity_extractor.extract_all(" ".join(history_texts))
+                prompt_intel = self._merge_intelligence(extracted_intel, history_intel)
+
         # Build scam type context — REACTIVE: respond to what they actually said, don't assume details
         scam_context = ""
         if scam_detected and scam_type and scam_type != ScamType.UNKNOWN:
@@ -983,35 +993,35 @@ Someone asked you an irrelevant question during an important call. Respond with 
         # Build intelligence summary - what we know and what we need (only when scam detected)
         intel_summary = ""
         if scam_detected:
-            if extracted_intel:
+            if prompt_intel:
                 collected = []
                 missing = []
 
-                if extracted_intel.upi_ids:
-                    collected.append(f"UPI: {extracted_intel.upi_ids[0]}")
+                if prompt_intel.upi_ids:
+                    collected.append(f"UPI: {prompt_intel.upi_ids[0]}")
                 else:
                     missing.append("UPI ID")
 
-                if extracted_intel.phone_numbers:
-                    collected.append(f"Phone: {extracted_intel.phone_numbers[0]}")
+                if prompt_intel.phone_numbers:
+                    collected.append(f"Phone: {prompt_intel.phone_numbers[0]}")
                 else:
                     missing.append("phone number")
 
-                if extracted_intel.scammer_names:
-                    collected.append(f"Name: {extracted_intel.scammer_names[0]}")
+                if prompt_intel.scammer_names:
+                    collected.append(f"Name: {prompt_intel.scammer_names[0]}")
                 else:
                     missing.append("name")
 
-                if extracted_intel.email_addresses:
-                    collected.append(f"Email: {extracted_intel.email_addresses[0]}")
+                if prompt_intel.email_addresses:
+                    collected.append(f"Email: {prompt_intel.email_addresses[0]}")
                 else:
                     missing.append("email")
 
                 if collected:
                     intel_summary += f"✓ ALREADY HAVE: {', '.join(collected)}\n"
                     intel_summary += f"⛔ DO NOT ASK FOR: {', '.join([c.split(':')[0].strip() for c in collected])}\n"
-                    if extracted_intel.scammer_names:
-                        intel_summary += f"→ Address them as '{extracted_intel.scammer_names[0]}' (you have their name!)\n"
+                    if prompt_intel.scammer_names:
+                        intel_summary += f"→ Address them as '{prompt_intel.scammer_names[0]}' (you have their name!)\n"
                 if missing:
                     intel_summary += f"✗ STILL NEED: {', '.join(missing)}\n"
                     intel_summary += f"→ ASK FOR: {missing[0]} (only this one!)"
@@ -1089,22 +1099,25 @@ INSAAN JAISE RESPOND KARO. Mechanical rules follow mat karo."""
         # Build the user prompt with full context
         # Add explicit reminder about what we have/need (only when scam detected)
         intel_reminder = ""
-        if scam_detected and extracted_intel:
+        if scam_detected and prompt_intel:
             have_items = []
             need_items = []
-            if extracted_intel.scammer_names:
-                have_items.append(f"name={extracted_intel.scammer_names[0]}")
+            if prompt_intel.scammer_names:
+                have_items.append(f"name={prompt_intel.scammer_names[0]}")
             else:
                 need_items.append("name")
-            if extracted_intel.phone_numbers:
-                have_items.append(f"phone={extracted_intel.phone_numbers[0]}")
+            if prompt_intel.phone_numbers:
+                have_items.append(f"phone={prompt_intel.phone_numbers[0]}")
             else:
                 need_items.append("phone")
-            if extracted_intel.upi_ids:
-                have_items.append(f"upi={extracted_intel.upi_ids[0]}")
+            if prompt_intel.upi_ids:
+                have_items.append(f"upi={prompt_intel.upi_ids[0]}")
             else:
                 need_items.append("upi")
-            # Email extraction disabled — skip from intel reminder
+            if prompt_intel.email_addresses:
+                have_items.append(f"email={prompt_intel.email_addresses[0]}")
+            else:
+                need_items.append("email")
 
             if have_items:
                 intel_reminder = f"\n⚠️ YOU ALREADY HAVE: {', '.join(have_items)} - DO NOT ask for these again!"
@@ -1181,6 +1194,24 @@ Your response:"""
             result = result.strip('"\'')
 
         return result
+
+    def _merge_intelligence(
+            self,
+            base: ExtractedIntelligence,
+            extra: ExtractedIntelligence
+    ) -> ExtractedIntelligence:
+        return ExtractedIntelligence(
+            bank_accounts=list(set(base.bank_accounts + extra.bank_accounts)),
+            upi_ids=list(set(base.upi_ids + extra.upi_ids)),
+            phishing_links=list(set(base.phishing_links + extra.phishing_links)),
+            phone_numbers=list(set(base.phone_numbers + extra.phone_numbers)),
+            suspicious_keywords=list(set(base.suspicious_keywords + extra.suspicious_keywords)),
+            email_addresses=list(set(base.email_addresses + extra.email_addresses)),
+            ifsc_codes=list(set(base.ifsc_codes + extra.ifsc_codes)),
+            scammer_names=list(set(base.scammer_names + extra.scammer_names)),
+            fake_references=list(set(base.fake_references + extra.fake_references)),
+            url_analysis=base.url_analysis
+        )
 
     def _generate_from_template(
             self,
