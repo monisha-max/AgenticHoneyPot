@@ -629,7 +629,7 @@ class CallbackManager:
                     upi_ids=extracted_intel.get("upiIds", []),
                     phishing_links=extracted_intel.get("phishingLinks", []),
                     phone_numbers=extracted_intel.get("phoneNumbers", []),
-                    # suspicious_keywords=extracted_intel.get("suspiciousKeywords", []),
+                    
                     email_addresses=extracted_intel.get("emailAddresses", []),
                     ifsc_codes=extracted_intel.get("ifscCodes", []),
                     scammer_names=extracted_intel.get("scammerNames", []),
