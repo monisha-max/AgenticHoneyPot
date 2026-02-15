@@ -145,6 +145,13 @@ class ScamDetectionEnsemble:
             weighted_score = max(weighted_score, 0.85)
             logger.info(f"Rule-based high confidence override: score={rule_result.score}")
 
+        # SPECIFIC: Digital Arrest scam detection (authority impersonation)
+        if "digital_arrest_scam_detected" in rule_result.evidence:
+            is_scam = True
+            weighted_score = max(weighted_score, 0.90)
+            scam_type = ScamType.IMPERSONATION
+            logger.info("Digital Arrest pattern detected - forcing IMPERSONATION")
+
         # High confidence override from ML (trained on real data)
         if ml_result.confidence > 0.85:
             is_scam = True
