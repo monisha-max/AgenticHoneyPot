@@ -265,7 +265,6 @@ class ExtractedIntelligencePayload(BaseModel):
     upiIds: List[str] = []
     phishingLinks: List[str] = []
     phoneNumbers: List[str] = []
-    suspiciousKeywords: List[str] = []
     emailAddresses: List[str] = []
 
 
