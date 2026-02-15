@@ -427,7 +427,7 @@ class EntityExtractor:
             phishing_links=list(set(existing_intelligence.phishing_links + new_intel.phishing_links)),
             phone_numbers=list(set(existing_intelligence.phone_numbers + new_intel.phone_numbers)),
             suspicious_keywords=list(set(existing_intelligence.suspicious_keywords + new_intel.suspicious_keywords)),
-            email_addresses=[],  # Email extraction disabled
+            email_addresses=list(set(existing_intelligence.email_addresses + new_intel.email_addresses),  # Email extraction disabled
             ifsc_codes=list(set(existing_intelligence.ifsc_codes + new_intel.ifsc_codes)),
             scammer_names=list(set(existing_intelligence.scammer_names + new_intel.scammer_names)),
             fake_references=list(set(existing_intelligence.fake_references + new_intel.fake_references))
@@ -477,8 +477,8 @@ class IntelligenceAggregator:
         if set(new_intel.scammer_names) - set(existing_intelligence.scammer_names):
             new_items.append("name")
         # Email extraction disabled
-        # if set(new_intel.email_addresses) - set(existing_intelligence.email_addresses):
-        #     new_items.append("email")
+        if set(new_intel.email_addresses) - set(existing_intelligence.email_addresses):
+            new_items.append("email")
 
         return new_intel, new_items
 
@@ -497,6 +497,7 @@ class IntelligenceAggregator:
             parts.append(f"Suspicious links: {len(intelligence.phishing_links)} found")
         if intelligence.scammer_names:
             parts.append(f"Names mentioned: {', '.join(intelligence.scammer_names)}")
+        
 
         return "; ".join(parts) if parts else "No significant intelligence extracted yet"
 
