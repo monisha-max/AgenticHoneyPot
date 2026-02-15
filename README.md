@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">🍯 Agentic Honey-Pot</h1>
   <p align="center">
-    <b>An AI-powered honeypot that fights scammers by becoming their worst nightmare — a convincingly gullible target that secretly extracts their intelligence.</b>
+    <b>An AI-powered honeypot that fights scammers by becoming their worst nightmare, a convincingly gullible target that secretly extracts their intelligence.</b>
   </p>
 
 </p>
