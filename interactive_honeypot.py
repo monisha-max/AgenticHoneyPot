@@ -82,7 +82,7 @@ async def interactive_cli():
                 if intel.phone_numbers: table.add_row("Phone Numbers", ", ".join(intel.phone_numbers))
                 if intel.phishing_links: table.add_row("Phishing Links", ", ".join(intel.phishing_links))
                 if intel.email_addresses: table.add_row("Email Addresses", ", ".join(intel.email_addresses))
-                # if intel.suspicious_keywords: table.add_row("Keywords", ", ".join(intel.suspicious_keywords[:5]))
+                
                 
                 table.add_row("Current Persona", str(state.persona.value), style="bold yellow")
                 table.add_row("Phase", state.conversation_phase.value)
