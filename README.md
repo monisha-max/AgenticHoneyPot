@@ -3,13 +3,7 @@
   <p align="center">
     <b>An AI-powered honeypot that fights scammers by becoming their worst nightmare — a convincingly gullible target that secretly extracts their intelligence.</b>
   </p>
-  <p align="center">
-    <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python" alt="Python">
-    <img src="https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi" alt="FastAPI">
-    <img src="https://img.shields.io/badge/OpenAI-GPT--5.2-412991?style=flat-square&logo=openai" alt="OpenAI">
-    <img src="https://img.shields.io/badge/scikit--learn-ML-F7931E?style=flat-square&logo=scikit-learn" alt="ML">
-    <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker" alt="Docker">
-  </p>
+
 </p>
 
 ---
@@ -166,19 +160,6 @@ x-api-key: YOUR_API_KEY
 }
 ```
 
-### Other Endpoints
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Health check |
-| `GET` | `/docs` | Swagger UI |
-| `GET` | `/demo` | WhatsApp-style demo UI |
-| `GET` | `/api/session/{id}` | Get session state (debug) |
-| `DELETE` | `/api/session/{id}` | End session & trigger callback |
-| `GET` | `/api/stats` | System statistics |
-
----
-
 ## 🎯 Scam Types Detected
 
 | Scam Type | Examples |
@@ -297,12 +278,3 @@ pytest tests/ -v
 
 ---
 
-## 📜 License
-
-MIT License — Use it to fight scammers. 🛡️
-
----
-
-<p align="center">
-  <b>Built with ❤️ to make scammers regret their life choices.</b>
-</p>
