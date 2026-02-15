@@ -187,7 +187,7 @@ class EntityExtractor:
         intelligence.ifsc_codes = self._extract_ifsc_codes(all_text)
         intelligence.phishing_links = self._extract_urls(all_text)
         # Email extraction disabled — low value, causes UPI/email confusion
-        # intelligence.email_addresses = self._extract_emails(all_text)
+        intelligence.email_addresses = self._extract_emails(all_text)
         # Name extraction is handled by LLM enricher (conversation-aware)
         intelligence.scammer_names = self._extract_names(all_text)
         intelligence.fake_references = self._extract_references(all_text)
