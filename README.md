@@ -58,7 +58,7 @@ Scammers send thousands of fraudulent messages daily, fake bank alerts, bogus jo
 | Persona | Age | Background | Best Against |
 |---|:---:|---|---|
 | 🧓 **Ramu Uncle** | 62 | Retired government clerk | Banking/KYC scams |
-| 👩‍🎓 **Ananya Student** | 20 | College student | Job/lottery scams |
+| 👩‍🎓 **Ananya Student** | 21 | College student | Job/lottery scams |
 | 👩‍🍳 **Aarti Homemaker** | 38 | Homemaker | UPI/bill scams |
 | 👨‍💻 **Vikram IT** | 29 | Software developer | Tech/investment scams |
 | 👩‍🏪 **Sunita Shop** | 45 | Kirana shop owner | QR/GST scams |
@@ -150,12 +150,12 @@ x-api-key: YOUR_API_KEY
     "reply": "Arey, mera SBI account? Kaunsa branch? Mera toh Koramangala mein hai...",
     "scamDetected": true,
     "extractedIntelligence": {
-        "names": [],
-        "phones": [],
-        "upis": [],
-        "emails": [],
-        "bankAccounts": []
-    },
+    "phoneNumbers": [],
+    "upiIds": [],
+    "bankAccounts": [],
+    "phishingLinks": [],
+    "emailAddresses": []
+     },
     "agentNotes": "Phase: PROBE, Emotion: CONFUSED"
 }
 ```
@@ -193,9 +193,16 @@ When a conversation ends, the system sends a structured payload:
         "upiIds": ["scammer@upi"],
         "phishingLinks": ["http://malicious-link.example"],
         "phoneNumbers": ["+91XXXXXXXXXX"],
-        "suspiciousKeywords": ["urgent", "verify now", "account blocked"]
+        "emailAddresses": ["scammer@gmail.com"]
     },
-    "agentNotes": "Scammer used urgency tactics and impersonated SBI officer"
+    "agentNotes": "Scammer used urgency tactics and impersonated SBI officer",
+    "engagementMetrics": {
+        "averageResponseTimeMs": 450,
+        "conversationDurationSec": 180,
+        "engagementScore": 0.85,
+        "turnsBeforeScamDetected": 2,
+        "intelligenceCompleteness": 0.75
+    }
 }
 ```
 
