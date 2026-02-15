@@ -455,7 +455,7 @@ class ConversationOrchestrator:
             return [cleaned.title()]
 
         if field == "email_addresses":
-            cleaned = raw.lower()
+            cleaned = raw.lower() 
             if re.fullmatch(r"[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}", cleaned):
                 return [cleaned]
             return []

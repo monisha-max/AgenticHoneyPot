@@ -187,7 +187,7 @@ class EntityExtractor:
         intelligence.ifsc_codes = self._extract_ifsc_codes(all_text)
         intelligence.phishing_links = self._extract_urls(all_text)
         # Email extraction disabled — low value, causes UPI/email confusion
-        # intelligence.email_addresses = self._extract_emails(all_text)
+        intelligence.email_addresses = self._extract_emails(all_text)
         # Name extraction is handled by LLM enricher (conversation-aware)
         intelligence.scammer_names = self._extract_names(all_text)
         intelligence.fake_references = self._extract_references(all_text)
@@ -477,8 +477,8 @@ class IntelligenceAggregator:
         if set(new_intel.scammer_names) - set(existing_intelligence.scammer_names):
             new_items.append("name")
         # Email extraction disabled
-        # if set(new_intel.email_addresses) - set(existing_intelligence.email_addresses):
-        #     new_items.append("email")
+        if set(new_intel.email_addresses) - set(existing_intelligence.email_addresses):
+            new_items.append("email")
 
         return new_intel, new_items
 
@@ -497,6 +497,8 @@ class IntelligenceAggregator:
             parts.append(f"Suspicious links: {len(intelligence.phishing_links)} found")
         if intelligence.scammer_names:
             parts.append(f"Names mentioned: {', '.join(intelligence.scammer_names)}")
+        if intelligence.email_addresses:
+            parts.append(f"Email addresses: {', '.join(intelligence.email_addresses)}")
 
         return "; ".join(parts) if parts else "No significant intelligence extracted yet"
 
@@ -514,7 +516,7 @@ class IntelligenceAggregator:
 
         # High value items
         if intelligence.upi_ids:
-            score += 0.25
+            score += 0.20
         if intelligence.phone_numbers:
             score += 0.20
         if intelligence.bank_accounts:
@@ -524,7 +526,9 @@ class IntelligenceAggregator:
         if intelligence.phishing_links:
             score += 0.10
         if intelligence.scammer_names:
-            score += 0.15  # Bumped since email removed
+            score += 0.10  # Bumped since email removed
+        if intelligence.email_addresses:
+            score += 0.10
 
         # Low value items
         if len(intelligence.suspicious_keywords) >= 3:

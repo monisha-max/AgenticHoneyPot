@@ -72,7 +72,8 @@ class CallbackManager:
             upiIds=state.intelligence.upi_ids,
             phishingLinks=state.intelligence.phishing_links,
             phoneNumbers=state.intelligence.phone_numbers,
-            suspiciousKeywords=state.intelligence.suspicious_keywords
+            # suspiciousKeywords=state.intelligence.suspicious_keywords,
+            emailAddresses=state.intelligence.email_addresses
         )
 
         # Build agent notes summary
@@ -247,11 +248,12 @@ class CallbackManager:
         # AGENT EFFECTIVENESS SUMMARY
         # =====================================================================
         effectiveness_score = 0
-        if intel.upi_ids: effectiveness_score += 20
+        if intel.upi_ids: effectiveness_score += 15
         if intel.phone_numbers: effectiveness_score += 15
-        if intel.bank_accounts: effectiveness_score += 20
+        if intel.bank_accounts: effectiveness_score += 15
         if intel.phishing_links: effectiveness_score += 15
         if intel.scammer_names: effectiveness_score += 10
+        if intel.email_addresses: effectiveness_score += 10
         if state.turn_count >= 3: effectiveness_score += 10
         if state.confidence_score > 0.8: effectiveness_score += 10
 
@@ -520,11 +522,12 @@ class CallbackManager:
                     upi_ids=extracted_intel.get("upiIds", []),
                     phishing_links=extracted_intel.get("phishingLinks", []),
                     phone_numbers=extracted_intel.get("phoneNumbers", []),
-                    suspicious_keywords=extracted_intel.get("suspiciousKeywords", []),
+                    # suspicious_keywords=extracted_intel.get("suspiciousKeywords", []),
                     email_addresses=extracted_intel.get("emailAddresses", []),
                     ifsc_codes=extracted_intel.get("ifscCodes", []),
                     scammer_names=extracted_intel.get("scammerNames", []),
                     fake_references=extracted_intel.get("fakeReferences", [])
+
                 ),
                 agent_notes=[payload.get("agentNotes", "")]
             )

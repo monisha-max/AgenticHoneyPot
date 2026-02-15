@@ -263,6 +263,7 @@ class ExtractedIntelligencePayload(BaseModel):
     phishingLinks: List[str] = []
     phoneNumbers: List[str] = []
     suspiciousKeywords: List[str] = []
+    emailAddresses: List[str] = []
 
 class GuviCallbackPayload(BaseModel):
     """

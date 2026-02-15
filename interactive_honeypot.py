@@ -2,6 +2,7 @@
 import asyncio
 import uuid
 import sys
+import logging
 from datetime import datetime, timezone
 from app.core.orchestrator import ConversationOrchestrator
 from app.api.schemas import Message, SenderType
@@ -13,6 +14,12 @@ from rich.live import Live
 from rich.text import Text
 
 console = Console()
+
+# Configure logging for CLI runs (main.py logging config is not used here)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 async def interactive_cli():
     console.print(Panel("[bold cyan]Agentic HoneyPot - Interactive CLI Testing[/bold cyan]\n[italic]Type 'exit' or 'quit' to end the session.[/italic]", border_style="cyan"))
@@ -74,7 +81,8 @@ async def interactive_cli():
                 if intel.upi_ids: table.add_row("UPI IDs", ", ".join(intel.upi_ids))
                 if intel.phone_numbers: table.add_row("Phone Numbers", ", ".join(intel.phone_numbers))
                 if intel.phishing_links: table.add_row("Phishing Links", ", ".join(intel.phishing_links))
-                if intel.suspicious_keywords: table.add_row("Keywords", ", ".join(intel.suspicious_keywords[:5]))
+                if intel.email_addresses: table.add_row("Email Addresses", ", ".join(intel.email_addresses))
+                # if intel.suspicious_keywords: table.add_row("Keywords", ", ".join(intel.suspicious_keywords[:5]))
                 
                 table.add_row("Current Persona", str(state.persona.value), style="bold yellow")
                 table.add_row("Phase", state.conversation_phase.value)
