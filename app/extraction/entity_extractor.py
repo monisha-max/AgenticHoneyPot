@@ -431,7 +431,7 @@ class EntityExtractor:
             ifsc_codes=list(set(existing_intelligence.ifsc_codes + new_intel.ifsc_codes)),
             scammer_names=list(set(existing_intelligence.scammer_names + new_intel.scammer_names)),
             fake_references=list(set(existing_intelligence.fake_references + new_intel.fake_references))
-        ))
+        )
 
         return merged
 
