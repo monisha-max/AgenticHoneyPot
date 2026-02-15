@@ -250,6 +250,9 @@ class SessionState(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     agent_notes: List[str] = []
     used_techniques: List[str] = []  # Track used probing techniques to avoid repetition
+    # Engagement metrics tracking
+    response_times_ms: List[int] = []  # Track response times for each turn
+    scam_detected_at_turn: Optional[int] = None  # Turn number when scam was first detected
 
 
 # ============================================================================
@@ -264,6 +267,16 @@ class ExtractedIntelligencePayload(BaseModel):
     phoneNumbers: List[str] = []
     suspiciousKeywords: List[str] = []
 
+
+class EngagementMetrics(BaseModel):
+    """Engagement metrics for GUVI scoring (2.5 points)"""
+    averageResponseTimeMs: int = 0  # Average response time in milliseconds
+    conversationDurationSec: int = 0  # Total conversation duration in seconds
+    engagementScore: float = 0.0  # 0-1 score based on conversation quality
+    turnsBeforeScamDetected: int = 0  # How many turns before scam was confirmed
+    intelligenceCompleteness: float = 0.0  # 0-1 score for intel gathered
+
+
 class GuviCallbackPayload(BaseModel):
     """
     Payload to send to GUVI evaluation endpoint
@@ -274,6 +287,7 @@ class GuviCallbackPayload(BaseModel):
     totalMessagesExchanged: int
     extractedIntelligence: ExtractedIntelligencePayload
     agentNotes: str
+    engagementMetrics: Optional[EngagementMetrics] = None  # Optional for 2.5 bonus points
 
     class Config:
         json_schema_extra = {
@@ -288,6 +302,13 @@ class GuviCallbackPayload(BaseModel):
                     "phoneNumbers": ["+91XXXXXXXXXX"],
                     "suspiciousKeywords": ["urgent", "verify now", "account blocked"]
                 },
-                "agentNotes": "Scammer used urgency tactics and payment redirection"
+                "agentNotes": "Scammer used urgency tactics and payment redirection",
+                "engagementMetrics": {
+                    "averageResponseTimeMs": 450,
+                    "conversationDurationSec": 180,
+                    "engagementScore": 0.85,
+                    "turnsBeforeScamDetected": 2,
+                    "intelligenceCompleteness": 0.75
+                }
             }
         }

@@ -464,20 +464,27 @@ class RuleBasedDetector:
             r"do not (tell|inform|contact) anyone",
             r"stay on.*(call|video|line)",
         ]
+        digital_arrest_detected = False
         for pattern in digital_arrest_patterns:
             if re.search(pattern, text_lower):
-                base_score = min(1.0, base_score + 0.6)  # Very high boost for digital arrest
+                base_score = min(1.0, base_score + 0.75)  # INCREASED: Must exceed 0.7 threshold
                 matches.append(RuleMatch(
                     rule_name="digital_arrest_pattern",
                     category="impersonation",
-                    score=0.6,
+                    score=0.75,
                     matched_text=pattern
                 ))
                 logger.info(f"Digital arrest pattern detected: {pattern}")
+                digital_arrest_detected = True
                 break
 
         # Determine scam type
         scam_type = self._determine_scam_type(all_text)
+
+        # FORCE IMPERSONATION for digital arrest patterns (override other scam types)
+        if digital_arrest_detected:
+            scam_type = ScamType.IMPERSONATION
+            logger.info("Forcing scam_type=IMPERSONATION due to digital arrest pattern")
 
         # Build evidence list
         evidence = []

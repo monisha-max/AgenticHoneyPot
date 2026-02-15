@@ -102,6 +102,10 @@ class ConversationOrchestrator:
         Returns:
             Agent's response string
         """
+        # Start timing for response time tracking (engagement metrics)
+        import time
+        start_time = time.time()
+
         logger.info(f"Processing message for session {session_id}")
 
         try:
@@ -192,6 +196,19 @@ class ConversationOrchestrator:
             await self._check_completion(state)
         except Exception as e:
             logger.warning(f"Completion check failed: {e}")
+
+        # Track response time for engagement metrics
+        try:
+            response_time_ms = int((time.time() - start_time) * 1000)
+            state = await self.session_manager.get_session(session_id)
+            if state:
+                if not hasattr(state, 'response_times_ms') or state.response_times_ms is None:
+                    state.response_times_ms = []
+                state.response_times_ms.append(response_time_ms)
+                await self.session_manager.update_session(session_id, state)
+                logger.debug(f"Response time for session {session_id}: {response_time_ms}ms")
+        except Exception as e:
+            logger.warning(f"Failed to track response time: {e}")
 
         logger.info(f"Generated response for session {session_id}")
         return response
@@ -338,6 +355,10 @@ class ConversationOrchestrator:
         # If scam intent just got confirmed, refresh intelligence from recent history
         if not was_scam and state.scam_detected:
             state = await self._refresh_intelligence_from_history(state)
+            # Track when scam was first detected (for engagement metrics)
+            if state.scam_detected_at_turn is None or state.scam_detected_at_turn == 0:
+                state.scam_detected_at_turn = state.turn_count + 1  # +1 because turn increments after detection
+                await self.session_manager.update_session(state.session_id, state)
 
         # CRITICAL: Merge detected keywords into intelligence for callback payload
         if detection_result.keywords_found:
