@@ -72,7 +72,6 @@ class CallbackManager:
             upiIds=state.intelligence.upi_ids,
             phishingLinks=state.intelligence.phishing_links,
             phoneNumbers=state.intelligence.phone_numbers,
-            # suspiciousKeywords=state.intelligence.suspicious_keywords,
             emailAddresses=state.intelligence.email_addresses
         )
 
