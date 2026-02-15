@@ -4,7 +4,9 @@ Interactive CLI for testing the Honeypot API
 """
 import requests
 import uuid
+import time
 from datetime import datetime
+from typing import Dict, List
 
 API_URL = "http://localhost:8000/api/honeypot-demo"
 API_KEY = "test-api-key-123"
@@ -17,6 +19,48 @@ BLUE = "\033[94m"
 CYAN = "\033[96m"
 RESET = "\033[0m"
 BOLD = "\033[1m"
+
+
+def _format_field(label: str, values: List[str]) -> str:
+    if not values:
+        return f"{label}: -"
+    return f"{label}: {', '.join(values)}"
+
+
+def print_full_intelligence(intel: Dict[str, List[str]]) -> None:
+    """Print full extracted intelligence values for debugging."""
+    print(f"{CYAN}Full Extracted Intelligence:{RESET}")
+    lines = [
+        _format_field("Names", intel.get("scammer_names", [])),
+        _format_field("Phones", intel.get("phone_numbers", [])),
+        _format_field("UPIs", intel.get("upi_ids", [])),
+        _format_field("Emails", intel.get("email_addresses", [])),
+        _format_field("Bank Accounts", intel.get("bank_accounts", [])),
+        _format_field("IFSC Codes", intel.get("ifsc_codes", [])),
+        _format_field("References", intel.get("fake_references", [])),
+        _format_field("Links", intel.get("phishing_links", [])),
+        _format_field("Keywords", intel.get("suspicious_keywords", [])),
+    ]
+    for line in lines:
+        print(f"  - {line}")
+
+
+def print_callback_intelligence(result: dict) -> None:
+    """Print final callback payload intelligence (5 keys)."""
+    payload = result.get("guviPayload") or {}
+    extracted = payload.get("extractedIntelligence") or {}
+    if not extracted:
+        return
+    print(f"{CYAN}Final Callback Intelligence:{RESET}")
+    lines = [
+        _format_field("bankAccounts", extracted.get("bankAccounts", [])),
+        _format_field("upiIds", extracted.get("upiIds", [])),
+        _format_field("phishingLinks", extracted.get("phishingLinks", [])),
+        _format_field("phoneNumbers", extracted.get("phoneNumbers", [])),
+        _format_field("suspiciousKeywords", extracted.get("suspiciousKeywords", [])),
+    ]
+    for line in lines:
+        print(f"  - {line}")
 
 def print_header():
     print(f"\n{BOLD}{CYAN}=" * 60)
@@ -40,8 +84,12 @@ def send_message(session_id: str, message: str, history: list) -> dict:
     }
 
     try:
+        start = time.perf_counter()
         response = requests.post(API_URL, json=payload, headers=headers, timeout=30)
-        return response.json()
+        elapsed = time.perf_counter() - start
+        result = response.json()
+        result["_elapsed_secs"] = round(elapsed, 3)
+        return result
     except Exception as e:
         return {"status": "error", "reply": f"Error: {e}"}
 
@@ -128,6 +176,7 @@ def main():
 
         completed = bool(result.get("completed"))
         completion_reason = result.get("completionReason")
+        elapsed_secs = result.get("_elapsed_secs")
 
         # Show state info
         print(f"\n{YELLOW}{'─' * 50}")
@@ -138,8 +187,12 @@ def main():
         )
         print(f"Backend ScamDetected: {backend_status}")
         print(f"Extracted Intel: {extracted_summary}")
+        if isinstance(elapsed_secs, (int, float)):
+            print(f"Response Time: {elapsed_secs:.3f}s")
         if completed:
             print(f"{RED}Session Completed{RESET} | Reason: {completion_reason}")
+            print_full_intelligence(intel)
+            print_callback_intelligence(result)
             print(f"{YELLOW}Start a new session with 'new' to continue testing.{RESET}")
         print(f"{'─' * 50}{RESET}")
 

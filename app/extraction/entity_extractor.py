@@ -38,7 +38,7 @@ class EntityExtractor:
 
         # UPI ID pattern - enhanced to catch more variants
         self.upi_pattern = re.compile(
-            r'([a-zA-Z0-9._-]+@[a-zA-Z]{2,15})',
+            r'(?<![a-zA-Z0-9._%+-])([a-zA-Z0-9._-]+@[a-zA-Z]{2,15})',
             re.IGNORECASE
         )
 
@@ -186,7 +186,6 @@ class EntityExtractor:
         intelligence.bank_accounts = self._extract_bank_accounts(all_text, intelligence.phone_numbers)
         intelligence.ifsc_codes = self._extract_ifsc_codes(all_text)
         intelligence.phishing_links = self._extract_urls(all_text)
-        # Email extraction disabled — low value, causes UPI/email confusion
         intelligence.email_addresses = self._extract_emails(all_text)
         # Name extraction is handled by LLM enricher (conversation-aware)
         intelligence.scammer_names = self._extract_names(all_text)
@@ -197,11 +196,45 @@ class EntityExtractor:
 
     def _extract_upi_ids(self, text: str) -> List[str]:
         """Extract and validate UPI IDs"""
-        matches = self.upi_pattern.findall(text)
+        def _is_continued_token(full_text: str, end_idx: int) -> bool:
+            """
+            Reject partial captures where token continues after match.
+            Examples:
+            - rahul@bank.com -> reject rahul@bank (continued with '.com')
+            - rahul@fakebankcom -> reject rahul@fakebank if continuation exists
+            """
+            if end_idx >= len(full_text):
+                return False
+
+            tail = full_text[end_idx:]
+            next_char = tail[0]
+
+            # Alphanumeric continuation means this is not a full token boundary.
+            if next_char.isalnum() or next_char in {"_", "-"}:
+                return True
+
+            # Dot followed by a domain-like suffix means likely an email domain continuation.
+            if next_char == "." and re.match(r"^\.[a-zA-Z]{2,}\b", tail):
+                return True
+
+            return False
+
+        raw_matches = []
+        for m in self.upi_pattern.finditer(text):
+            candidate = m.group(1)
+            if _is_continued_token(text, m.end(1)):
+                continue
+            raw_matches.append(candidate)
 
         # Also check payment app specific patterns
-        payment_matches = self.payment_app_pattern.findall(text)
-        matches.extend(payment_matches)
+        for m in self.payment_app_pattern.finditer(text):
+            candidate = m.group(1)
+            if _is_continued_token(text, m.end(1)):
+                continue
+            raw_matches.append(candidate)
+
+        matches = raw_matches
+        known_emails = set(self._extract_emails(text))
 
         validated = []
 
@@ -215,6 +248,9 @@ class EntityExtractor:
 
             # Skip if it looks like a website domain
             if any(ext in upi_lower for ext in ['.com', '.in', '.org', '.net', '.co']):
+                continue
+            # Skip if this is a partial capture from a full email (e.g. name@bank in name@bank.com)
+            if any(email == upi_lower or email.startswith(f"{upi_lower}.") for email in known_emails):
                 continue
 
             # Check for valid UPI provider
@@ -476,7 +512,6 @@ class IntelligenceAggregator:
             new_items.append("keywords")
         if set(new_intel.scammer_names) - set(existing_intelligence.scammer_names):
             new_items.append("name")
-        # Email extraction disabled
         if set(new_intel.email_addresses) - set(existing_intelligence.email_addresses):
             new_items.append("email")
 

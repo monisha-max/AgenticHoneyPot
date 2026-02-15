@@ -35,7 +35,8 @@ from app.extraction.entity_extractor import EntityExtractor, IntelligenceAggrega
 from app.extraction.url_analyzer import URLAnalyzer
 from app.extraction.llm_intelligence_enricher import (
     LLMIntelligenceEnricher,
-    EnrichmentResult
+    EnrichmentResult,
+    CallbackVerificationResult
 )
 
 logger = logging.getLogger(__name__)
@@ -143,12 +144,14 @@ class ConversationOrchestrator:
             # Step 4: Extract intelligence from message
             state = await self._extract_intelligence(state, message)
         except Exception as e:
-            logger.warning(f"Intelligence extraction failed: {e}")
+            logger.exception("Intelligence extraction failed: %s", e)
 
         try:
             # Step 4b: Conversation-aware LLM enrichment for soft entities (name/email)
             # Run during active scam sessions when these fields are still missing.
-            state = await self._enrich_soft_entities_if_needed(state)
+            # Disabled for latency-focused pipeline runs.
+            # state = await self._enrich_soft_entities_if_needed(state)
+            pass
         except Exception as e:
             logger.warning(f"LLM soft enrichment skipped due to error: {e}")
 
@@ -395,11 +398,6 @@ class ConversationOrchestrator:
             updated_state = await self.session_manager.update_intelligence(
                 latest_state.session_id,
                 history_intel
-            )
-            updated_state = await self._run_llm_enrichment(
-                updated_state,
-                history_texts,
-                reason="scam_flip"
             )
             return updated_state
         except Exception as e:
@@ -796,17 +794,7 @@ class ConversationOrchestrator:
         state = await self.session_manager.get_session(state.session_id)
 
         if self.completion_detector.should_complete(state):
-            # Final enrichment pass before closing/callback.
-            scammer_messages = [
-                m.get("text", "")
-                for m in (state.conversation_history or [])[-40:]
-                if m.get("sender") == "scammer"
-            ]
-            state = await self._run_llm_enrichment(
-                state,
-                scammer_messages,
-                reason="pre_completion"
-            )
+            # Skip LLM enrichment/verification for latency-focused pipeline runs.
             state = await self.session_manager.get_session(state.session_id) or state
 
             # Mark session as complete
@@ -830,6 +818,85 @@ class ConversationOrchestrator:
             logger.info(f"Triggering callback for session {state.session_id}")
             await self.callback_manager.send_callback_async(state)
             self.session_manager.record_callback_sent()
+
+    async def _verify_callback_intelligence(self, state: SessionState) -> SessionState:
+        """
+        Final callback-focused verification:
+        - remove likely victim-owned values from callback fields
+        - backfill missing callback fields found in transcript
+        """
+        if not settings.ENABLE_LLM_CALLBACK_VERIFICATION:
+            return state
+        if not state or not state.conversation_history:
+            return state
+
+        latest_state = await self.session_manager.get_session(state.session_id) or state
+        conversation_lines = []
+        for msg in (latest_state.conversation_history or [])[-80:]:
+            sender = "Scammer" if msg.get("sender") == "scammer" else "Agent"
+            text = (msg.get("text") or "").strip()
+            if text:
+                conversation_lines.append(f"{sender}: {text}")
+        if not conversation_lines:
+            return latest_state
+
+        current_callback_intel = {
+            "bank_accounts": list(latest_state.intelligence.bank_accounts or []),
+            "upi_ids": list(latest_state.intelligence.upi_ids or []),
+            "phishing_links": list(latest_state.intelligence.phishing_links or []),
+            "phone_numbers": list(latest_state.intelligence.phone_numbers or []),
+            "suspicious_keywords": list(latest_state.intelligence.suspicious_keywords or []),
+        }
+
+        try:
+            verification: CallbackVerificationResult = await asyncio.wait_for(
+                self.llm_intel_enricher.verify_callback_intelligence(
+                    conversation_lines=conversation_lines,
+                    current_intelligence=current_callback_intel
+                ),
+                timeout=settings.LLM_CALLBACK_INTEL_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Callback intelligence verification timed out for %s", latest_state.session_id)
+            return latest_state
+        except Exception as e:
+            logger.warning("Callback intelligence verification failed for %s: %s", latest_state.session_id, e)
+            return latest_state
+
+        verified_fields = {
+            "bank_accounts": verification.bank_accounts,
+            "upi_ids": verification.upi_ids,
+            "phishing_links": verification.phishing_links,
+            "phone_numbers": verification.phone_numbers,
+            "suspicious_keywords": verification.suspicious_keywords,
+        }
+        if not any(verified_fields.values()):
+            return latest_state
+
+        base = latest_state.intelligence.model_dump()
+        base.update(verified_fields)
+        reconciled_intel = ExtractedIntelligence(**base)
+        updated_state = await self.session_manager.replace_intelligence(
+            latest_state.session_id,
+            reconciled_intel
+        )
+
+        deltas = []
+        for field, new_vals in verified_fields.items():
+            before = set(current_callback_intel.get(field, []))
+            after = set(new_vals)
+            added = len(after - before)
+            removed = len(before - after)
+            if added or removed:
+                deltas.append(f"{field}(+{added}/-{removed})")
+
+        if deltas:
+            await self.session_manager.add_agent_note(
+                updated_state.session_id,
+                f"Callback verification: {', '.join(deltas)}"
+            )
+
+        return updated_state
 
     async def complete_session(self, session_id: str) -> Dict[str, Any]:
         """Manually complete a session and send callback"""

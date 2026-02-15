@@ -12,7 +12,11 @@ from app.api.schemas import (
 )
 from app.core.callback_manager import CallbackManager
 from app.core.orchestrator import ConversationOrchestrator
-from app.extraction.llm_intelligence_enricher import EnrichmentResult, EnrichedCandidate
+from app.extraction.llm_intelligence_enricher import (
+    CallbackVerificationResult,
+    EnrichmentResult,
+    EnrichedCandidate,
+)
 
 
 def _make_state() -> SessionState:
@@ -151,3 +155,88 @@ def test_llm_enrichment_fail_open(monkeypatch):
 
     assert result.session_id == state.session_id
     assert result.intelligence.model_dump() == state.intelligence.model_dump()
+
+
+def test_callback_verification_can_prune_and_fill(monkeypatch):
+    monkeypatch.setattr("app.config.settings.ENABLE_LLM_CALLBACK_VERIFICATION", True)
+    monkeypatch.setattr("app.config.settings.LLM_CALLBACK_INTEL_TIMEOUT", 2)
+
+    state = _make_state()
+    state.intelligence.bank_accounts = ["123456789123"]  # victim-owned false positive
+    state.intelligence.upi_ids = []
+    state.intelligence.phone_numbers = ["+919999999999"]
+    state.intelligence.phishing_links = []
+    state.intelligence.suspicious_keywords = ["urgent"]
+    state.conversation_history = [
+        {"sender": "scammer", "text": "Pay to UPI fraudpay@upi now"},
+        {"sender": "user", "text": "My account number is 123456789123"},
+    ]
+
+    class DummyVerifier:
+        async def verify_callback_intelligence(self, conversation_lines, current_intelligence):
+            return CallbackVerificationResult(
+                bank_accounts=[],
+                upi_ids=["fraudpay@upi"],
+                phishing_links=[],
+                phone_numbers=["+919999999999"],
+                suspicious_keywords=["urgent"],
+                raw={}
+            )
+
+    class DummySessionManager:
+        def __init__(self, initial_state):
+            self._state = initial_state
+
+        async def get_session(self, _session_id):
+            return self._state
+
+        async def replace_intelligence(self, _session_id, intelligence):
+            self._state.intelligence = intelligence
+            return self._state
+
+        async def add_agent_note(self, _session_id, _note):
+            return self._state
+
+    orch = ConversationOrchestrator.__new__(ConversationOrchestrator)
+    orch.llm_intel_enricher = DummyVerifier()
+    orch.session_manager = DummySessionManager(state)
+
+    result = asyncio.run(ConversationOrchestrator._verify_callback_intelligence(orch, state))
+
+    assert result.intelligence.bank_accounts == []
+    assert result.intelligence.upi_ids == ["fraudpay@upi"]
+    assert result.intelligence.phone_numbers == ["+919999999999"]
+
+
+def test_callback_verification_fail_open(monkeypatch):
+    monkeypatch.setattr("app.config.settings.ENABLE_LLM_CALLBACK_VERIFICATION", True)
+    monkeypatch.setattr("app.config.settings.LLM_CALLBACK_INTEL_TIMEOUT", 2)
+
+    state = _make_state()
+    state.intelligence.bank_accounts = ["999988887777"]
+    state.conversation_history = [{"sender": "scammer", "text": "pay now"}]
+
+    class DummyVerifier:
+        async def verify_callback_intelligence(self, conversation_lines, current_intelligence):
+            raise RuntimeError("simulated verifier failure")
+
+    class DummySessionManager:
+        def __init__(self, initial_state):
+            self._state = initial_state
+
+        async def get_session(self, _session_id):
+            return self._state
+
+        async def replace_intelligence(self, _session_id, intelligence):
+            self._state.intelligence = intelligence
+            return self._state
+
+        async def add_agent_note(self, _session_id, _note):
+            return self._state
+
+    orch = ConversationOrchestrator.__new__(ConversationOrchestrator)
+    orch.llm_intel_enricher = DummyVerifier()
+    orch.session_manager = DummySessionManager(state)
+
+    result = asyncio.run(ConversationOrchestrator._verify_callback_intelligence(orch, state))
+    assert result.intelligence.bank_accounts == ["999988887777"]

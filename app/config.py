@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     ENABLE_LLM_INTEL_ENRICHMENT: bool = True
     LLM_INTEL_TIMEOUT: int = 4
     LLM_INTEL_MIN_CONFIDENCE: float = 0.75
+    ENABLE_LLM_CALLBACK_VERIFICATION: bool = True
+    LLM_CALLBACK_INTEL_MODEL: Optional[str] = None
+    LLM_CALLBACK_INTEL_TIMEOUT: int = 6
+    LLM_CALLBACK_INTEL_MIN_CONFIDENCE: float = 0.75
 
     # Redis Configuration (for session management)
     USE_REDIS: bool = False  # Toggle to switch between Redis and in-memory store

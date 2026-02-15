@@ -378,7 +378,31 @@ class SessionManager:
         state.intelligence.scammer_names = list(set(
             state.intelligence.scammer_names + intelligence.scammer_names
         ))
+        state.intelligence.fake_references = list(set(
+            state.intelligence.fake_references + intelligence.fake_references
+        ))
+        existing_url_analysis = list(state.intelligence.url_analysis or [])
+        incoming_url_analysis = list(intelligence.url_analysis or [])
+        state.intelligence.url_analysis = existing_url_analysis + [
+            item for item in incoming_url_analysis if item not in existing_url_analysis
+        ]
 
+        await self.update_session(session_id, state)
+        return state
+
+    async def replace_intelligence(
+            self,
+            session_id: str,
+            intelligence: ExtractedIntelligence
+    ) -> SessionState:
+        """
+        Replace intelligence fields (used by pre-callback verification).
+        """
+        state = await self.get_session(session_id)
+        if not state:
+            raise ValueError(f"Session not found: {session_id}")
+
+        state.intelligence = intelligence
         await self.update_session(session_id, state)
         return state
 
