@@ -66,13 +66,14 @@ class CallbackManager:
         Returns:
             GuviCallbackPayload ready to send
         """
-        # Convert intelligence to exactly the requested 5-key format
+        # Convert intelligence to payload format
         intelligence_payload = ExtractedIntelligencePayload(
             bankAccounts=state.intelligence.bank_accounts,
             upiIds=state.intelligence.upi_ids,
             phishingLinks=state.intelligence.phishing_links,
             phoneNumbers=state.intelligence.phone_numbers,
-            emailAddresses=state.intelligence.email_addresses
+            emailAddresses=state.intelligence.email_addresses,
+            suspiciousKeywords=state.intelligence.suspicious_keywords
         )
 
         # Build agent notes summary
