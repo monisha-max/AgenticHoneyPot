@@ -156,6 +156,7 @@ class HoneypotResponse(BaseModel):
     scamDetected: Optional[bool] = Field(None, description="Whether a scam was detected")
     extractedIntelligence: Optional[Dict[str, Any]] = Field(None, description="Extracted intelligence from the conversation")
     agentNotes: Optional[str] = Field(None, description="Internal notes about the conversation")
+    engagementMetrics: Optional[Dict[str, Any]] = Field(None, description="Engagement metrics for scoring")
 
     class Config:
         json_schema_extra = {

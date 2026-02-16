@@ -337,12 +337,48 @@ async def process_message(
         if state:
             agent_notes = f"Phase: {state.conversation_phase.value}, Emotion: {state.emotional_state.value}"
 
+        # Build engagement metrics
+        engagement_metrics = None
+        if state:
+            # Calculate average response time
+            avg_response_time = 0
+            if hasattr(state, 'response_times_ms') and state.response_times_ms:
+                avg_response_time = sum(state.response_times_ms) // len(state.response_times_ms)
+
+            # Calculate conversation duration
+            duration_sec = 0
+            if state.created_at and state.updated_at:
+                duration = state.updated_at - state.created_at
+                duration_sec = int(duration.total_seconds())
+
+            # Calculate engagement score
+            engagement_score = min(1.0, (state.turn_count / 10) * 0.5 + (0.5 if state.scam_detected else 0))
+
+            # Calculate intelligence completeness
+            intel_completeness = 0.0
+            if state.intelligence:
+                if state.intelligence.upi_ids: intel_completeness += 0.25
+                if state.intelligence.phone_numbers: intel_completeness += 0.20
+                if state.intelligence.bank_accounts: intel_completeness += 0.20
+                if state.intelligence.phishing_links: intel_completeness += 0.15
+                if state.intelligence.scammer_names: intel_completeness += 0.10
+                if len(state.intelligence.suspicious_keywords) >= 3: intel_completeness += 0.10
+
+            engagement_metrics = {
+                "averageResponseTimeMs": avg_response_time,
+                "conversationDurationSec": duration_sec,
+                "engagementScore": round(engagement_score, 2),
+                "turnsBeforeScamDetected": getattr(state, 'scam_detected_at_turn', None) or state.turn_count,
+                "intelligenceCompleteness": round(min(1.0, intel_completeness), 2)
+            }
+
         return HoneypotResponse(
             status="success",
             reply=response,
             scamDetected=state.scam_detected if state else False,
             extractedIntelligence=extracted_intel if extracted_intel else {},
-            agentNotes=agent_notes
+            agentNotes=agent_notes,
+            engagementMetrics=engagement_metrics
         )
 
     except ValueError as e:
