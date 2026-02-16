@@ -267,6 +267,7 @@ class ExtractedIntelligencePayload(BaseModel):
     phishingLinks: List[str] = []
     phoneNumbers: List[str] = []
     emailAddresses: List[str] = []
+    suspiciousKeywords: List[str] = []
 
 
 class EngagementMetrics(BaseModel):
