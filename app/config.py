@@ -52,11 +52,13 @@ class Settings(BaseSettings):
     SCAM_CONFIDENCE_THRESHOLD: float = 0.6
     HIGH_CONFIDENCE_THRESHOLD: float = 0.85
 
-    # Conversation Limits - optimized for GUVI scoring (8+ turns = max points)
-    MAX_CONVERSATION_TURNS: int = 15
-    ENGAGE_PHASE_TURNS: int = 3
-    PROBE_PHASE_TURNS: int = 6
-    EXTRACT_PHASE_TURNS: int = 8
+    # Conversation Limits - optimized for GUVI scoring
+    # 12 turns = ~60-72 seconds duration (>60s = +2pts)
+    # 12 turns = 24 messages (≥10 = max message points)
+    MAX_CONVERSATION_TURNS: int = 18
+    ENGAGE_PHASE_TURNS: int = 4
+    PROBE_PHASE_TURNS: int = 8
+    EXTRACT_PHASE_TURNS: int = 12
 
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
