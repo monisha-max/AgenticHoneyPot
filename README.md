@@ -10,7 +10,7 @@
 
 ## What is this?
 
-Scammers send thousands of fraudulent messages daily — fake bank alerts, bogus job offers, lottery scams, digital arrest threats. Most people either ignore them or fall victim.
+Scammers send thousands of fraudulent messages daily, fake bank alerts, bogus job offers, lottery scams, digital arrest threats. Most people either ignore them or fall victim.
 
 **Agentic Honey-Pot flips the script.** It deploys autonomous AI agents that:
 
