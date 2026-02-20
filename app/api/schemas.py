@@ -287,9 +287,12 @@ class GuviCallbackPayload(BaseModel):
     sessionId: str
     scamDetected: bool
     totalMessagesExchanged: int
+    engagementDurationSeconds: int = 0
     extractedIntelligence: ExtractedIntelligencePayload
     agentNotes: str
-    engagementMetrics: Optional[EngagementMetrics] = None  # Optional for 2.5 bonus points
+    scamType: Optional[str] = None  # Optional - 1pt
+    confidenceLevel: Optional[str] = None  # Optional - 1pt (HIGH/MEDIUM/LOW)
+    engagementMetrics: Optional[EngagementMetrics] = None
 
     class Config:
         json_schema_extra = {
@@ -297,20 +300,16 @@ class GuviCallbackPayload(BaseModel):
                 "sessionId": "abc123-session-id",
                 "scamDetected": True,
                 "totalMessagesExchanged": 18,
+                "engagementDurationSeconds": 180,
                 "extractedIntelligence": {
                     "bankAccounts": ["XXXX-XXXX-XXXX"],
                     "upiIds": ["scammer@upi"],
                     "phishingLinks": ["http://malicious-link.example"],
                     "phoneNumbers": ["+91XXXXXXXXXX"],
-                    "suspiciousKeywords": ["urgent", "verify now", "account blocked"]
+                    "emailAddresses": ["scammer@fake.com"]
                 },
                 "agentNotes": "Scammer used urgency tactics and payment redirection",
-                "engagementMetrics": {
-                    "averageResponseTimeMs": 450,
-                    "conversationDurationSec": 180,
-                    "engagementScore": 0.85,
-                    "turnsBeforeScamDetected": 2,
-                    "intelligenceCompleteness": 0.75
-                }
+                "scamType": "BANKING_FRAUD",
+                "confidenceLevel": "HIGH"
             }
         }

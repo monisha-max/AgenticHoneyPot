@@ -82,15 +82,38 @@ class CallbackManager:
         # Use actual history length for accurate count (not turn_count * 2 which assumes perfect execution)
         actual_message_count = len(state.conversation_history) if state.conversation_history else state.turn_count * 2
 
+        # Calculate engagement duration in seconds
+        engagement_duration_seconds = 0
+        if state.created_at and state.updated_at:
+            duration = state.updated_at - state.created_at
+            engagement_duration_seconds = int(duration.total_seconds())
+
         # Build engagement metrics for bonus points
         engagement_metrics = self._build_engagement_metrics(state)
+
+        # Determine scam type string
+        scam_type_str = None
+        if state.scam_type and state.scam_type != ScamType.UNKNOWN:
+            scam_type_str = state.scam_type.value
+
+        # Determine confidence level
+        confidence_level = None
+        if state.confidence_score > 0.8:
+            confidence_level = "HIGH"
+        elif state.confidence_score > 0.5:
+            confidence_level = "MEDIUM"
+        elif state.confidence_score > 0:
+            confidence_level = "LOW"
 
         return GuviCallbackPayload(
             sessionId=state.session_id,
             scamDetected=state.scam_detected,
             totalMessagesExchanged=actual_message_count,
+            engagementDurationSeconds=engagement_duration_seconds,
             extractedIntelligence=intelligence_payload,
             agentNotes=agent_notes,
+            scamType=scam_type_str,
+            confidenceLevel=confidence_level,
             engagementMetrics=engagement_metrics
         )
 
