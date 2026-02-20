@@ -1,9 +1,4 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/FastAPI-0.100+-green.svg" alt="FastAPI">
-  <img src="https://img.shields.io/badge/LLM-OpenAI%20%7C%20Anthropic%20%7C%20Google-purple.svg" alt="LLM">
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
-</p>
+
 
 <h1 align="center">Agentic Honey-Pot</h1>
 
