@@ -1,9 +1,14 @@
-
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/FastAPI-0.100+-green.svg" alt="FastAPI">
+  <img src="https://img.shields.io/badge/LLM-OpenAI-purple.svg" alt="LLM">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
+</p>
 
 <h1 align="center">Agentic Honey-Pot</h1>
 
 <p align="center">
-  <b>An AI-powered honeypot that fights scammers by becoming their worst nightmare, a convincingly gullible target that secretly extracts their intelligence.</b>
+  <b>An AI-powered honeypot that fights scammers by becoming their worst nightmare — a convincingly gullible target that secretly extracts their intelligence.</b>
 </p>
 
 ---
@@ -67,7 +72,7 @@ Scammers send thousands of fraudulent messages daily — fake bank alerts, bogus
 | **Rule-Based** | 20% | 400+ keyword patterns across urgency, threats, financial, impersonation |
 | **Pattern Matcher** | 15% | Regex extraction of phone numbers, UPI IDs, URLs, bank accounts |
 | **ML Classifier** | 35% | TF-IDF + Voting Classifier trained on 10K+ real scam messages |
-| **LLM Semantic** | 30% | GPT/Claude analyzes intent, tactics, and context |
+| **LLM Semantic** | 30% | GPT-4o-mini analyzes intent, tactics, and context |
 
 ### 5 Indian Personas
 
@@ -86,7 +91,7 @@ Scammers send thousands of fraudulent messages daily — fake bank alerts, bogus
 ### Prerequisites
 
 - Python 3.10 or higher
-- An LLM API key (OpenAI, Anthropic, or Google)
+- An OpenAI API key
 - Git
 
 ### Step 1: Clone & Install
@@ -121,10 +126,7 @@ nano .env   # or use any text editor
 **Minimum required configuration:**
 
 ```env
-# Choose your LLM provider: openai, anthropic, or google
-LLM_PROVIDER=openai
-
-# Add the API key for your chosen provider
+# OpenAI API key (required)
 OPENAI_API_KEY=sk-your-openai-key-here
 
 # Optional: Set a custom API key for your honeypot endpoint
@@ -185,10 +187,7 @@ python interactive_honeypot.py
 
 | Variable | Required | Default | Description |
 |----------|:--------:|---------|-------------|
-| `LLM_PROVIDER` | Yes | `openai` | LLM provider: `openai`, `anthropic`, or `google` |
-| `OPENAI_API_KEY` | If using OpenAI | - | Your OpenAI API key |
-| `ANTHROPIC_API_KEY` | If using Anthropic | - | Your Anthropic API key |
-| `GOOGLE_API_KEY` | If using Google | - | Your Google AI API key |
+| `OPENAI_API_KEY` | Yes | - | Your OpenAI API key |
 | `API_KEY` | No | `your-secret-api-key...` | API key for authenticating requests |
 | `DEBUG` | No | `false` | Enable debug logging |
 | `LLM_MODEL` | No | `gpt-4o-mini` | Model to use for LLM calls |
@@ -198,27 +197,12 @@ python interactive_honeypot.py
 | `USE_REDIS` | No | `false` | Use Redis for session storage |
 | `REDIS_URL` | No | `redis://localhost:6379/0` | Redis connection URL |
 
-### LLM Provider Configuration
+### LLM Configuration
 
-**OpenAI (Recommended):**
 ```env
-LLM_PROVIDER=openai
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
-LLM_MODEL=gpt-4o-mini
-```
-
-**Anthropic:**
-```env
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
-LLM_MODEL=claude-3-haiku-20240307
-```
-
-**Google:**
-```env
-LLM_PROVIDER=google
-GOOGLE_API_KEY=AIzaxxxxxxxxxxxxx
-LLM_MODEL=gemini-1.5-flash
+LLM_MODEL=gpt-4o-mini          # Default model
+LLM_TEMPERATURE=0.7            # Response creativity (0-2)
 ```
 
 ---
@@ -363,7 +347,7 @@ AgenticHoneyPot/
 │   │   ├── rule_based.py        # 400+ keyword rules
 │   │   ├── pattern_matcher.py   # Regex entity extraction
 │   │   ├── ml_classifier.py     # Trained ML model
-│   │   ├── llm_analyzer.py      # GPT/Claude semantic analysis
+│   │   ├── llm_analyzer.py      # GPT semantic analysis
 │   │   └── scam_taxonomy.py     # Scam type definitions
 │   ├── agent/
 │   │   ├── persona_engine.py    # 5 Indian persona profiles
@@ -511,7 +495,7 @@ python -m uvicorn app.main:app 2>&1 | grep -E "(detection|extraction|response)"
 | Category | Technology |
 |----------|------------|
 | **Framework** | FastAPI + Uvicorn |
-| **LLM** | OpenAI GPT-4o-mini / Anthropic Claude / Google Gemini |
+| **LLM** | OpenAI GPT-4o-mini |
 | **ML** | scikit-learn (TF-IDF + Voting Classifier) |
 | **Data** | Trained on 10K+ real WhatsApp scam messages |
 | **Sessions** | In-memory (dev) / Redis (prod) |
@@ -521,3 +505,32 @@ python -m uvicorn app.main:app 2>&1 | grep -E "(detection|extraction|response)"
 
 ---
 
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`pytest tests/ -v`)
+5. Commit (`git commit -m 'Add amazing feature'`)
+6. Push (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Code Style
+
+- Use type hints
+- Follow PEP 8
+- Add docstrings to functions
+- Handle errors explicitly (no bare `except:`)
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  <b>Built with by Team AgenticHoneyPot</b><br>
+  <i>Fighting scammers, one conversation at a time.</i>
+</p>
