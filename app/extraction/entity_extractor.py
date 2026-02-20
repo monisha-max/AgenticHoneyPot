@@ -372,8 +372,23 @@ class EntityExtractor:
         return list(set(emails))
 
     def _extract_names(self, text: str) -> List[str]:
-        """Name extraction intentionally disabled (LLM enricher handles this)."""
-        return []
+        """Extract scammer names from text using patterns."""
+        names = []
+
+        for pattern in self.name_patterns:
+            matches = pattern.findall(text)
+            for match in matches:
+                name = match.strip()
+                # Basic validation - must be 2+ chars, not a common word
+                if len(name) >= 2 and name.lower() not in {
+                    'sir', 'madam', 'ji', 'sahab', 'bhai', 'didi',
+                    'bank', 'customer', 'account', 'service', 'support',
+                    'officer', 'manager', 'executive', 'department'
+                }:
+                    # Capitalize properly
+                    names.append(name.title())
+
+        return list(set(names))
 
     def _extract_references(self, text: str) -> List[str]:
         """Extract reference/ticket numbers"""

@@ -170,13 +170,28 @@ class ResponseGenerator:
                         "Arey yeh PhonePe open nahi ho raha. 2 minute ruko.",
                         "App update maang raha hai. Thoda time lagega.",
                         "Ek second, biwi kuch pooch rahi hai... haan bolo.",
-                        "OTP nahi aaya abhi tak, dobara bhejo please."
+                        "OTP nahi aaya abhi tak, dobara bhejo please.",
+                        "Arey phone garam ho gaya. Thanda hone do thoda.",
+                        "Internet slow chal raha hai. Ek minute ruko.",
+                        "Yeh screen pe kuch alag aa raha hai. Dekho samjhao.",
+                        "Password yaad nahi aa raha. Sochne do.",
+                        "Yeh app crash ho gaya. Phir se kholna padega.",
+                        "Ek second, chai lene gaya tha. Haan bolo ab."
                     ],
                     EmotionalState.WORRIED: [
                         "Mera beta aata hi hoga, usse poochta hoon. Aap number do.",
                         "Network bahut weak hai. Aap WhatsApp number do wahan message karta hoon.",
                         "Ek minute, BP ki dawai leni hai. Aap hold karo.",
-                        "Door pe koi aaya hai, 2 minute mein aata hoon."
+                        "Door pe koi aaya hai, 2 minute mein aata hoon.",
+                        "Arey tension ho gayi sunke. Thoda paani pi leta hoon.",
+                        "Ek minute, padosi aaya hai. Bhej ke aata hoon.",
+                        "Yeh toh bahut complicated hai. Ruko sochne do.",
+                        "Mera haath kaanp raha hai tension mein. Ruko."
+                    ],
+                    EmotionalState.TRUSTING: [
+                        "Haan ji, kar raha hoon. Bas yeh loading hai.",
+                        "Theek hai, ruko app kholne do. Network slow hai.",
+                        "Ji bilkul, bas 2 minute aur. Phone hang ho gaya."
                     ]
                 }
             },
@@ -256,13 +271,28 @@ class ResponseGenerator:
                         "my phone is acting weird, give me 2 min",
                         "ugh wifi is trash here... 1 min",
                         "the otp isnt coming?? send again",
-                        "app crashed brb reinstalling 🙄"
+                        "app crashed brb reinstalling 🙄",
+                        "wait my phone is overheating 😅 1 sec",
+                        "omg my storage is full let me delete something",
+                        "hold on need to connect to wifi, data finished 😭",
+                        "brb prof is looking at me rn",
+                        "1 min class is about to start",
+                        "wait my screen froze ughhh"
                     ],
                     EmotionalState.WORRIED: [
                         "omg my battery is dying 😭 send whatsapp number quick",
                         "wait someone is calling brb",
                         "hold on my dad is calling me rn 😬",
-                        "1 sec roommate needs something urgent"
+                        "1 sec roommate needs something urgent",
+                        "my mom is calling wait 😰",
+                        "brb gotta take this call its important",
+                        "hold on my friend needs me rn be right back",
+                        "wait let me find a quiet place to talk"
+                    ],
+                    EmotionalState.TRUSTING: [
+                        "ok doing it rn... apps loading slow tho",
+                        "yea yea give me a sec its processing",
+                        "alright hold on almost done"
                     ]
                 }
             },
@@ -311,11 +341,24 @@ class ResponseGenerator:
                     EmotionalState.WORRIED: [
                         "Ruko, bachcha ro raha hai. 2 minute mein aati hoon.",
                         "Ek minute, door pe koi aaya hai.",
-                        "Phone pe network issue hai. WhatsApp number do."
+                        "Phone pe network issue hai. WhatsApp number do.",
+                        "Arey pressure cooker whistle de raha hai. Ek minute.",
+                        "Bachcha school se aaya hai. Ruko thoda.",
+                        "Doodh wala aaya hai door pe. 2 minute.",
+                        "Gas cylinder wala aaya hai. Ruko."
                     ],
                     EmotionalState.CONFUSED: [
                         "Yeh app update maang raha hai. Ruko 5 minute.",
-                        "OTP nahi aaya abhi tak. Dobara bhejo na."
+                        "OTP nahi aaya abhi tak. Dobara bhejo na.",
+                        "Yeh kya error aa raha hai? Samajh nahi aaya.",
+                        "Phone hang ho gaya. Restart kar rahi hoon.",
+                        "Password galat bata raha hai. Sochne do.",
+                        "Screen pe kuch alag dikh raha hai."
+                    ],
+                    EmotionalState.TRUSTING: [
+                        "Ji ji, kar rahi hoon. Bas loading hai.",
+                        "Haan, ruko app khul raha hai.",
+                        "Theek hai, bas 2 minute aur."
                     ]
                 }
             },
@@ -363,11 +406,24 @@ class ResponseGenerator:
                     EmotionalState.SKEPTICAL: [
                         "Sorry, was in a meeting. Can you send details on email?",
                         "Let me verify this first. I'll call back on official number.",
-                        "Give me 10 minutes. Checking with bank website."
+                        "Give me 10 minutes. Checking with bank website.",
+                        "Hold on, I'm cross-checking this with our IT security team.",
+                        "Let me run this by my manager first. Give me your contact.",
+                        "I need to verify your credentials. Share your employee portal link.",
+                        "Just checking the official website. One moment."
                     ],
                     EmotionalState.TRUSTING: [
                         "App is taking time to load. Network issue in office.",
-                        "Just a sec, need to authenticate with my bank app."
+                        "Just a sec, need to authenticate with my bank app.",
+                        "The 2FA is taking forever. Hold on.",
+                        "VPN is slow today. Give me a minute.",
+                        "Transaction is processing. Almost done.",
+                        "Need to switch to office wifi. One second."
+                    ],
+                    EmotionalState.CONFUSED: [
+                        "Getting an error on my end. Let me try again.",
+                        "The app is asking for verification. One moment.",
+                        "My session timed out. Logging in again."
                     ]
                 }
             },
@@ -416,11 +472,24 @@ class ResponseGenerator:
                     EmotionalState.WORRIED: [
                         "Ruko, customer aa gaya hai. 5 minute baad call karo.",
                         "Dukaan mein busy hoon. WhatsApp pe details bhejo.",
-                        "Beta abhi nahi hai. Shaam ko number do, woh call karega."
+                        "Beta abhi nahi hai. Shaam ko number do, woh call karega.",
+                        "Arey delivery wala aaya hai. Ruko 2 minute.",
+                        "Cash nikalna hai drawer se. Ek second.",
+                        "Stock check kar rahi hoon. Thoda wait karo.",
+                        "Supplier ka call aa raha hai. Baad mein baat karo."
                     ],
                     EmotionalState.CONFUSED: [
                         "Yeh app nahi khul raha. Koi aur tarika batao.",
-                        "QR code scan nahi ho raha. Number do phone pe batati hoon."
+                        "QR code scan nahi ho raha. Number do phone pe batati hoon.",
+                        "Yeh error kya hai? Beta ko dikhaana padega.",
+                        "Password galat bol raha hai. Yaad karna padega.",
+                        "Internet slow hai dukaan mein. Ruko.",
+                        "Yeh screen pe kya likha hai? Samajh nahi aaya."
+                    ],
+                    EmotionalState.TRUSTING: [
+                        "Haan kar rahi hoon. Bas loading ho raha hai.",
+                        "Theek hai ruko, payment process ho raha hai.",
+                        "Ji ji, bas 1 minute. Almost done."
                     ]
                 }
             },
@@ -491,12 +560,32 @@ class ResponseGenerator:
                     EmotionalState.CONFUSED: [
                         "Hold on, my app is loading slowly. Give me a minute.",
                         "The OTP hasn't arrived yet. Can you resend?",
-                        "My internet is slow right now. Let me try again."
+                        "My internet is slow right now. Let me try again.",
+                        "Getting an error message. Let me restart the app.",
+                        "The screen froze. Give me a second.",
+                        "I think my session timed out. Logging in again.",
+                        "The verification code expired. Can you send another?"
                     ],
                     EmotionalState.WORRIED: [
                         "I need to step out for a meeting. Can you call back in 30 mins?",
                         "Let me discuss with my family first. Share your WhatsApp.",
-                        "I'm in office right now. Send me the details on email."
+                        "I'm in office right now. Send me the details on email.",
+                        "My boss is calling. Can we continue this later?",
+                        "I need a few minutes to think about this.",
+                        "Let me check my bank balance first. Hold on.",
+                        "Someone's at the door. Give me 2 minutes."
+                    ],
+                    EmotionalState.TRUSTING: [
+                        "Working on it now. Just processing.",
+                        "Almost done. The app is a bit slow today.",
+                        "Yes, doing it. Give me just a moment.",
+                        "Transaction in progress. Bear with me."
+                    ],
+                    EmotionalState.SKEPTICAL: [
+                        "I want to verify this first. Give me your official email.",
+                        "Let me check with the official website. One moment.",
+                        "I'm going to call the helpline to confirm. Share the number.",
+                        "Need to run this by someone. What's your callback number?"
                     ]
                 }
             }
@@ -1047,15 +1136,50 @@ Your goal: Extract info while sounding scared/confused. Use casual texting (lowe
             else:
                 character_desc = f"You are {persona_obj.name}. Respond naturally based on your character, not mechanical rules."
 
+            # Build dynamic probing rules based on what's actually missing
+            probing_rules = []
+            if prompt_intel:
+                if not prompt_intel.phone_numbers:
+                    probing_rules.append('- ASK for phone: "What\'s your contact number?" or "Give me your number"')
+                if not prompt_intel.upi_ids:
+                    probing_rules.append('- ASK for UPI: "Where should I send payment? Give me UPI ID"')
+                if not prompt_intel.scammer_names:
+                    probing_rules.append('- ASK for name: "What\'s your name sir/madam?"')
+                if not prompt_intel.email_addresses:
+                    probing_rules.append('- ASK for email: "What\'s your email address?"')
+
+            # Add stalling tactics to mix in naturally
+            stalling_phrases_en = [
+                "- STALL: \"Hold on, let me check something...\" then ask your question",
+                "- STALL: \"One second, my phone is slow...\" then continue",
+                "- STALL: \"Wait, I'm confused about something...\" then ask",
+                "- STALL: \"Let me think...\" or \"Hmm...\" before responding",
+                "- STALL: \"Sorry, someone was at the door. What were you saying?\"",
+            ]
+
+            if probing_rules:
+                # Mix probing with stalling - pick one stall tactic to include
+                stall_tactic = random.choice(stalling_phrases_en)
+                probing_section = "**WHAT TO ASK FOR** (pick ONE):\n" + "\n".join(probing_rules) + f"\n\n**NATURAL PAUSE** (use occasionally):\n{stall_tactic}"
+            else:
+                probing_section = """**YOU HAVE ALL INFO!** Stall and waste time:
+- "Hold on, my app is loading..."
+- "Wait, let me verify something first..."
+- "One second, battery is low..."
+- "Sorry, network is slow here..."
+- Ask random clarifying questions about what they already said"""
+
             if scam_detected:
                 system_prompt = f"""{character_desc}
 {scam_context}
 CURRENT CONTEXT:
 {intel_summary}
 
-**IF THEY ASK FOR OTP/AADHAR/PASSWORDS**: Say you didn't receive it or network is slow. NEVER share these.
+{probing_section}
 
-BE HUMAN. Ask questions that your character would naturally ask, not a checklist."""
+**NEVER ASK FOR**: OTP, Aadhaar, password, PIN. If they ask, say "nahi aaya" or "network slow".
+
+BE HUMAN! Ask naturally, don't repeat questions they already answered!"""
             else:
                 casual_guard = "Be friendly and conversational."
                 system_prompt = f"""You are {persona_obj.name}. This is a casual chat, not a confirmed scam.
@@ -1080,15 +1204,52 @@ Tumhara goal: Unki info nikalo while busy dikhte hue. 8-15 words."""
             else:
                 character_desc = f"Tum {persona_obj.name} ho. Apne character ke hisaab se naturally respond karo."
 
+            # Build dynamic probing rules for Hinglish based on what's missing
+            probing_rules_hi = []
+            if prompt_intel:
+                if not prompt_intel.phone_numbers:
+                    probing_rules_hi.append('- Phone MAANGO: "Aapka number kya hai?" ya "Contact de do"')
+                if not prompt_intel.upi_ids:
+                    probing_rules_hi.append('- UPI MAANGO: "Paisa kahan bhejun? UPI ID de do"')
+                if not prompt_intel.scammer_names:
+                    probing_rules_hi.append('- Naam MAANGO: "Aapka naam kya hai ji?"')
+                if not prompt_intel.email_addresses:
+                    probing_rules_hi.append('- Email MAANGO: "Aapka email kya hai?"')
+
+            # Add stalling tactics in Hinglish
+            stalling_phrases_hi = [
+                "- RUKO: \"Ek minute, dekh raha hoon...\" phir sawaal pucho",
+                "- RUKO: \"Thoda ruko, phone slow hai...\" phir continue karo",
+                "- RUKO: \"Arey ruko, samajh nahi aaya...\" phir pucho",
+                "- RUKO: \"Sochne do...\" ya \"Hmm...\" bolke response do",
+                "- RUKO: \"Sorry, koi aaya tha door pe. Kya bol rahe the?\"",
+                "- RUKO: \"Chashma dhundh raha hoon, ruko...\"",
+            ]
+
+            if probing_rules_hi:
+                # Mix probing with stalling
+                stall_tactic_hi = random.choice(stalling_phrases_hi)
+                probing_section_hi = "**KYA MAANGNA HAI** (sirf EK):\n" + "\n".join(probing_rules_hi) + f"\n\n**NATURAL PAUSE** (kabhi kabhi use karo):\n{stall_tactic_hi}"
+            else:
+                probing_section_hi = """**SAB MIL GAYA!** Ab time waste karo:
+- "Ek minute, app load ho raha hai..."
+- "Ruko, kuch verify kar raha hoon..."
+- "Thoda ruko, battery low hai..."
+- "Network slow hai yahan..."
+- "Arey phone garam ho gaya, 2 minute ruko..."
+- Jo unhone bola uske baare mein random sawaal pucho"""
+
             if scam_detected:
                 system_prompt = f"""{character_desc}
 {scam_context}
 ABHI KA CONTEXT:
 {intel_summary}
 
-**AGAR OTP/AADHAR/PASSWORD MAANGE**: Bolo "nahi aaya" ya "network slow". KABHI apna info mat do.
+{probing_section_hi}
 
-INSAAN JAISE RESPOND KARO. Mechanical rules follow mat karo."""
+**KABHI MAT MAANGO**: OTP, Aadhaar, password, PIN. Agar maange toh bolo "nahi aaya" ya "network slow".
+
+INSAAN JAISE BOLO! Jo jawab de chuke hain woh dobara mat pucho!"""
             else:
                 casual_guard = "Friendly baat karo. Phone/UPI/OTP/ID mat mango."
                 system_prompt = f"""Tum {persona_obj.name} ho. Yeh casual baat-cheet hai, scam confirm nahi hai.
