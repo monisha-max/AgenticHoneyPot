@@ -158,7 +158,6 @@ async def demo_page():
         return HTMLResponse("<h1>Demo UI not found</h1>", status_code=404)
 
     html = demo_path.read_text(encoding="utf-8")
-    html = html.replace("__DEMO_API_KEY__", settings.API_KEY)
     return HTMLResponse(html)
 
 

@@ -49,6 +49,8 @@ logs/
 htmlcov/
 .tox/
 .nox/
+evaluate_deployed_endpoint.py
+test_honeypot\ \(1\).py
 
 # Misc
 *.bak

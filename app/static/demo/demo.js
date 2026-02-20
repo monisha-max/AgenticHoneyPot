@@ -20,6 +20,7 @@ const broadcastMinimize = document.getElementById("broadcastMinimize");
 const broadcastInput = document.getElementById("broadcastInput");
 const broadcastSend = document.getElementById("broadcastSend");
 const broadcastClear = document.getElementById("broadcastClear");
+const DEMO_API_KEY_STORAGE_KEY = "demo_api_key";
 
 const sampleIntro = [
   "You are chatting with the honeypot agent. Send scam-like prompts to begin.",
@@ -31,6 +32,29 @@ let activeChatId = "ramu_uncle";
 
 initChats();
 renderActiveChat();
+
+function ensureDemoApiKey() {
+  const existing = (window.DEMO_API_KEY || "").trim();
+  if (existing) {
+    return existing;
+  }
+
+  const stored = (window.localStorage.getItem(DEMO_API_KEY_STORAGE_KEY) || "").trim();
+  if (stored) {
+    window.DEMO_API_KEY = stored;
+    return stored;
+  }
+
+  const entered = window.prompt("Enter API key for demo requests:", "");
+  if (entered && entered.trim()) {
+    const sanitized = entered.trim();
+    window.DEMO_API_KEY = sanitized;
+    window.localStorage.setItem(DEMO_API_KEY_STORAGE_KEY, sanitized);
+    return sanitized;
+  }
+
+  return "";
+}
 
 function createSessionId() {
   if (window.crypto && window.crypto.randomUUID) {
@@ -189,12 +213,22 @@ async function sendMessageForChat(chat, text, showCompletionModal) {
     setLoading(true);
   }
 
+  const demoApiKey = ensureDemoApiKey();
+  if (!demoApiKey) {
+    addUiMessage(chat, "Error: API key is required to send requests.", "incoming", "user");
+    chat.isLoading = false;
+    if (chat.id === activeChatId) {
+      setLoading(false);
+    }
+    return;
+  }
+
   try {
     const response = await fetch("/api/honeypot-demo", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": window.DEMO_API_KEY || ""
+        "x-api-key": demoApiKey
       },
       body: JSON.stringify(payload)
     });

@@ -5,11 +5,12 @@ Interactive CLI for testing the Honeypot API
 import requests
 import uuid
 import time
+import os
 from datetime import datetime
 from typing import Dict, List
 
 API_URL = "http://localhost:8000/api/honeypot-demo"
-API_KEY = "test-api-key-123"
+API_KEY = os.environ.get("API_KEY", "").strip()
 
 # Colors for terminal
 RED = "\033[91m"
@@ -109,7 +110,14 @@ def check_scam_keywords(message: str) -> tuple:
     return is_likely_scam, found
 
 def main():
+    global API_KEY
     print_header()
+
+    if not API_KEY:
+        API_KEY = input(f"{YELLOW}Enter API key for x-api-key header: {RESET}").strip()
+        if not API_KEY:
+            print(f"{RED}API key is required to run interactive CLI.{RESET}")
+            return
 
     session_id = str(uuid.uuid4())[:8]
     history = []
