@@ -328,10 +328,12 @@ async def process_message(
             intel = state.intelligence
             extracted_intel = {
                 "names": intel.scammer_names or [],
-                "phones": intel.phone_numbers or [],
-                "upis": intel.upi_ids or [],
-                "emails": intel.email_addresses or [],
-                "bankAccounts": intel.bank_accounts or []
+                "phoneNumbers": intel.phone_numbers or [],
+                "upiIds": intel.upi_ids or [],
+                "emailAddresses": intel.email_addresses or [],
+                "bankAccounts": intel.bank_accounts or [],
+                "phishingLinks": intel.phishing_links or [],
+                "suspiciousKeywords": intel.suspicious_keywords or []
             }
 
         # Build agent notes
