@@ -69,13 +69,49 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 
+def validate_settings(s: Settings) -> list:
+    """Validate settings and return list of warnings"""
+    warnings = []
+
+    # Check API key is not default
+    if s.API_KEY == "your-secret-api-key-change-in-production":
+        warnings.append("API_KEY is using default value - change in production")
+
+    # Check LLM API key based on provider
+    provider = s.LLM_PROVIDER.lower()
+    if provider == "openai" and not s.OPENAI_API_KEY:
+        warnings.append("OPENAI_API_KEY not set but LLM_PROVIDER is 'openai'")
+    elif provider == "anthropic" and not s.ANTHROPIC_API_KEY:
+        warnings.append("ANTHROPIC_API_KEY not set but LLM_PROVIDER is 'anthropic'")
+    elif provider == "google" and not s.GOOGLE_API_KEY:
+        warnings.append("GOOGLE_API_KEY not set but LLM_PROVIDER is 'google'")
+
+    # Check thresholds are valid
+    if not 0 <= s.SCAM_CONFIDENCE_THRESHOLD <= 1:
+        warnings.append(f"SCAM_CONFIDENCE_THRESHOLD should be 0-1, got {s.SCAM_CONFIDENCE_THRESHOLD}")
+
+    if s.LLM_TEMPERATURE < 0 or s.LLM_TEMPERATURE > 2:
+        warnings.append(f"LLM_TEMPERATURE should be 0-2, got {s.LLM_TEMPERATURE}")
+
+    return warnings
+
+
 @lru_cache()
 def get_settings() -> Settings:
     """
     Get cached settings instance
     Uses lru_cache to avoid reading .env file on every request
     """
-    return Settings()
+    s = Settings()
+
+    # Log validation warnings
+    import logging
+    logger = logging.getLogger(__name__)
+    warnings = validate_settings(s)
+    for warning in warnings:
+        logger.warning(f"Config warning: {warning}")
+
+    return s
 
 
 # Convenience function for accessing settings
