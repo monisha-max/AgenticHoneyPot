@@ -33,6 +33,43 @@ logger = logging.getLogger(__name__)
 # APPLICATION LIFESPAN
 # ============================================================================
 
+async def _check_llm_health() -> bool:
+    """Verify LLM API key is valid on startup"""
+    try:
+        provider = settings.LLM_PROVIDER.lower()
+        if provider == "openai" and settings.OPENAI_API_KEY:
+            from openai import OpenAI
+            client = OpenAI(api_key=settings.OPENAI_API_KEY)
+            # Simple test call
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": "hi"}],
+                max_tokens=5
+            )
+            return True
+        elif provider == "anthropic" and settings.ANTHROPIC_API_KEY:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+            response = client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=5,
+                messages=[{"role": "user", "content": "hi"}]
+            )
+            return True
+        elif provider == "google" and settings.GOOGLE_API_KEY:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content("hi")
+            return True
+        else:
+            logger.warning(f"No API key configured for LLM provider: {provider}")
+            return False
+    except Exception as e:
+        logger.error(f"LLM health check failed: {e}")
+        return False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -46,6 +83,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"Debug mode: {settings.DEBUG}")
     logger.info(f"LLM Provider: {settings.LLM_PROVIDER}")
     logger.info(f"Scam threshold: {settings.SCAM_CONFIDENCE_THRESHOLD}")
+
+    # LLM Health Check
+    llm_healthy = await _check_llm_health()
+    if llm_healthy:
+        logger.info("LLM API key verified successfully")
+    else:
+        logger.warning("LLM API key verification FAILED - will use fallback templates")
+
     logger.info("=" * 60)
 
     yield  # Application runs here

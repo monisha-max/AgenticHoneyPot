@@ -336,7 +336,8 @@ class ScamMLClassifier:
             feature_scores.sort(key=lambda x: x[1], reverse=True)
 
             return [f[0] for f in feature_scores[:top_n]]
-        except:
+        except (AttributeError, IndexError, ValueError) as e:
+            logger.debug(f"Could not extract top features: {e}")
             return []
 
     def _fallback_predict(self, text: str) -> MLClassifierResult:

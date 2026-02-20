@@ -105,7 +105,8 @@ async def process_message_flex(
         import json
         try:
             data = json.loads(body_str) if body_str else {}
-        except:
+        except json.JSONDecodeError as e:
+            logger.debug(f"JSON parse failed, treating as plain text: {e}")
             data = {"text": body_str}
 
         # Extract any text we can find
@@ -156,7 +157,7 @@ def _parse_timestamp(ts_value: Any) -> datetime:
             # Handle ISO format with Z suffix
             return datetime.fromisoformat(ts_value.replace('Z', '+00:00'))
         except ValueError:
-            pass
+            logger.debug(f"ISO timestamp parse failed for: {ts_value[:50] if len(str(ts_value)) > 50 else ts_value}")
 
         # Try parsing as numeric string
         try:
@@ -166,9 +167,10 @@ def _parse_timestamp(ts_value: Any) -> datetime:
             else:
                 return datetime.utcfromtimestamp(numeric_ts)
         except ValueError:
-            pass
+            logger.debug(f"Numeric timestamp parse failed for: {ts_value[:50] if len(str(ts_value)) > 50 else ts_value}")
 
     # Fallback to current time
+    logger.debug(f"Using current time as fallback for timestamp: {ts_value}")
     return datetime.utcnow()
 
 
@@ -396,7 +398,8 @@ async def process_message(
         # This is crucial for hackathon scoring - never fail completely
         try:
             msg_text = request.message.text if 'request' in dir() and request and request.message else ""
-        except:
+        except (AttributeError, NameError) as fallback_err:
+            logger.debug(f"Could not extract message text for fallback: {fallback_err}")
             msg_text = ""
         fallback_response = _generate_fallback_response(msg_text)
         logger.warning(f"Using fallback response due to error: {str(e)}")
