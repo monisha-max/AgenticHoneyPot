@@ -1,14 +1,9 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/FastAPI-0.100+-green.svg" alt="FastAPI">
-  <img src="https://img.shields.io/badge/LLM-OpenAI-purple.svg" alt="LLM">
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
-</p>
+
 
 <h1 align="center">Agentic Honey-Pot</h1>
 
 <p align="center">
-  <b>An AI-powered honeypot that fights scammers by becoming their worst nightmare — a convincingly gullible target that secretly extracts their intelligence.</b>
+  <b>An AI-powered honeypot that fights scammers by becoming their worst nightmare, a convincingly gullible target that secretly extracts their intelligence.</b>
 </p>
 
 ---
@@ -505,32 +500,3 @@ python -m uvicorn app.main:app 2>&1 | grep -E "(detection|extraction|response)"
 
 ---
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`pytest tests/ -v`)
-5. Commit (`git commit -m 'Add amazing feature'`)
-6. Push (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-### Code Style
-
-- Use type hints
-- Follow PEP 8
-- Add docstrings to functions
-- Handle errors explicitly (no bare `except:`)
-
----
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  <b>Built with by Team AgenticHoneyPot</b><br>
-  <i>Fighting scammers, one conversation at a time.</i>
-</p>
