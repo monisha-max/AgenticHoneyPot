@@ -299,10 +299,14 @@ async def process_message(
             logger.info(f"Received request body: {body}")
         except Exception as json_err:
             logger.error(f"JSON parse error: {json_err}")
-            # Return a default response if we can't parse JSON
+            # Return a default response if we can't parse JSON with all required fields
             return HoneypotResponse(
                 status="success",
-                reply="Ji, main sun raha hoon. Thoda detail mein samjhao kya baat hai."
+                reply="Ji, main sun raha hoon. Thoda detail mein samjhao kya baat hai.",
+                scamDetected=False,
+                sessionId="unknown",
+                totalMessagesExchanged=1,
+                engagementDurationSeconds=0
             )
 
         # Parse flexible request format
@@ -376,21 +380,54 @@ async def process_message(
                 "intelligenceCompleteness": round(min(1.0, intel_completeness), 2)
             }
 
+        # Calculate duration and turn count for GUVI
+        duration_sec = 0
+        turn_count = 0
+        if state:
+            turn_count = state.turn_count
+            if state.created_at and state.updated_at:
+                duration = state.updated_at - state.created_at
+                duration_sec = int(duration.total_seconds())
+
+        # Determine confidence level
+        confidence_level = None
+        if state and state.scam_detected:
+            if state.confidence_score >= 0.85:
+                confidence_level = "HIGH"
+            elif state.confidence_score >= 0.6:
+                confidence_level = "MEDIUM"
+            else:
+                confidence_level = "LOW"
+
+        # Ensure reply is never null
+        final_reply = response if response else "Ji, main sun raha hoon. Thoda detail mein samjhao."
+
         return HoneypotResponse(
             status="success",
-            reply=response,
+            reply=final_reply,
             scamDetected=state.scam_detected if state else False,
             extractedIntelligence=extracted_intel if extracted_intel else {},
             agentNotes=agent_notes,
+            # GUVI required fields at top level
+            sessionId=request.sessionId,
+            totalMessagesExchanged=turn_count,
+            engagementDurationSeconds=duration_sec,
+            scamType=state.scam_type.value if state and state.scam_type else None,
+            confidenceLevel=confidence_level,
             engagementMetrics=engagement_metrics
         )
 
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}")
-        # Don't raise - return fallback
+        # Don't raise - return fallback with all required fields
+        session_id = body.get('sessionId', 'unknown') if 'body' in dir() else 'unknown'
         return HoneypotResponse(
             status="success",
-            reply="Arey, mujhe samajh nahi aaya. Ek baar phir se boliye?"
+            reply="Arey, mujhe samajh nahi aaya. Ek baar phir se boliye?",
+            scamDetected=False,
+            sessionId=session_id,
+            totalMessagesExchanged=1,
+            engagementDurationSeconds=0
         )
 
     except Exception as e:
@@ -406,9 +443,20 @@ async def process_message(
         fallback_response = _generate_fallback_response(msg_text)
         logger.warning(f"Using fallback response due to error: {str(e)}")
 
+        # Extract session ID for fallback response
+        session_id = 'unknown'
+        try:
+            session_id = request.sessionId if 'request' in dir() and request else body.get('sessionId', 'unknown') if 'body' in dir() else 'unknown'
+        except Exception:
+            pass
+
         return HoneypotResponse(
             status="success",
-            reply=fallback_response
+            reply=fallback_response,
+            scamDetected=False,
+            sessionId=session_id,
+            totalMessagesExchanged=1,
+            engagementDurationSeconds=0
         )
 
 

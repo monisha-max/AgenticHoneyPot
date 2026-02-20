@@ -150,12 +150,19 @@ class HoneypotResponse(BaseModel):
     """
     Main API response schema
     Returns the agent's reply to the scammer
+    GUVI-compliant format with all required fields at top level
     """
     status: str = Field(..., description="Status of the request: success or error")
     reply: str = Field(..., description="The agent's response message")
     scamDetected: Optional[bool] = Field(None, description="Whether a scam was detected")
     extractedIntelligence: Optional[Dict[str, Any]] = Field(None, description="Extracted intelligence from the conversation")
     agentNotes: Optional[str] = Field(None, description="Internal notes about the conversation")
+    # GUVI Required fields at top level
+    sessionId: Optional[str] = Field(None, description="Session identifier")
+    totalMessagesExchanged: Optional[int] = Field(None, description="Total messages in conversation")
+    engagementDurationSeconds: Optional[int] = Field(None, description="Duration in seconds")
+    scamType: Optional[str] = Field(None, description="Type of scam detected")
+    confidenceLevel: Optional[str] = Field(None, description="Confidence level: HIGH/MEDIUM/LOW")
     engagementMetrics: Optional[Dict[str, Any]] = Field(None, description="Engagement metrics for scoring")
 
     class Config:
@@ -164,14 +171,21 @@ class HoneypotResponse(BaseModel):
                 "status": "success",
                 "reply": "Why is my account being suspended?",
                 "scamDetected": True,
+                "sessionId": "test-session-123",
+                "totalMessagesExchanged": 5,
+                "engagementDurationSeconds": 45,
+                "scamType": "BANKING_FRAUD",
+                "confidenceLevel": "HIGH",
                 "extractedIntelligence": {
                     "names": ["Rajesh Kumar"],
-                    "phones": ["9876543210"],
-                    "upis": ["rajesh@paytm"],
-                    "emails": ["rajesh@email.com"],
-                    "bankAccounts": []
+                    "phoneNumbers": ["9876543210"],
+                    "upiIds": ["rajesh@paytm"],
+                    "emailAddresses": ["rajesh@email.com"],
+                    "bankAccounts": [],
+                    "phishingLinks": [],
+                    "suspiciousKeywords": []
                 },
-                "agentNotes": "Victim appears engaged"
+                "agentNotes": "Phase: PROBE, Emotion: CONFUSED"
             }
         }
 
