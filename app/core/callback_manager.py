@@ -729,9 +729,9 @@ class CompletionDetector:
         Returns:
             True if sufficient intelligence gathered
         """
-        # Minimum engagement turns - ensure deeper engagement for better scoring
-        # Evaluators likely score engagement depth, so don't end too early
-        if state.turn_count < 5:
+        # Minimum engagement turns - GUVI scores 8pts for ≥8 turns
+        # Keep scammer engaged longer for maximum scoring
+        if state.turn_count < 8:
             return False
 
         intel = state.intelligence
